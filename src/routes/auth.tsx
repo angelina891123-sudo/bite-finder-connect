@@ -39,7 +39,7 @@ function AuthPage() {
   const [displayName, setDisplayName] = useState("");
   const [restaurantName, setRestaurantName] = useState("");
   const [phone, setPhone] = useState("");
-  const [region, setRegion] = useState(REGIONS[0]);
+  const [region, setRegion] = useState<string>(REGIONS[0] ?? "台北市");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -140,41 +140,29 @@ function AuthPage() {
               </TabsContent>
 
               <TabsContent value="signup">
+                {selectedRole !== "merchant" ? (
+                  <div className="space-y-4 pt-6 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      Foodie 創作者註冊採三步驟表單，需填寫社群數據與內容偏好，以便為你媒合最適合的案件。
+                    </p>
+                    <Button asChild className="w-full">
+                      <Link to="/foodie-signup">前往 Foodie 註冊</Link>
+                    </Button>
+                  </div>
+                ) : (
                 <form className="space-y-4 pt-4" onSubmit={handleSignup}>
                   <div className="space-y-1.5">
-                    <Label>我是</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {(["creator", "merchant"] as const).map((r) => (
-                        <button
-                          key={r}
-                          type="button"
-                          onClick={() => setSignupRole(r)}
-                          className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                            signupRole === r
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-border bg-background text-foreground"
-                          }`}
-                        >
-                          {r === "creator" ? "Foodie 創作者" : "餐廳商家"}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="name">{signupRole === "merchant" ? "聯絡人姓名" : "暱稱"}</Label>
+                    <Label htmlFor="name">聯絡人姓名</Label>
                     <Input id="name" required value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
                   </div>
-                  {signupRole === "merchant" ? (
-                    <div className="space-y-1.5">
-                      <Label htmlFor="rest">餐廳名稱</Label>
-                      <Input id="rest" required value={restaurantName} onChange={(e) => setRestaurantName(e.target.value)} />
-                    </div>
-                  ) : (
-                    <div className="space-y-1.5">
-                      <Label htmlFor="ig">Instagram 帳號</Label>
-                      <Input id="ig" placeholder="@yourhandle" value={instagram} onChange={(e) => setInstagram(e.target.value)} />
-                    </div>
-                  )}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="rest">餐廳名稱</Label>
+                    <Input id="rest" required value={restaurantName} onChange={(e) => setRestaurantName(e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="phone">聯絡電話</Label>
+                    <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                  </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="region">所在地區</Label>
                     <select
@@ -202,6 +190,7 @@ function AuthPage() {
                     建立帳號
                   </Button>
                 </form>
+                )}
               </TabsContent>
             </Tabs>
           </CardContent>
