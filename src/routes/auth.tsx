@@ -38,9 +38,8 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [restaurantName, setRestaurantName] = useState("");
-  const [instagram, setInstagram] = useState("");
+  const [phone, setPhone] = useState("");
   const [region, setRegion] = useState(REGIONS[0]);
-  const [signupRole, setSignupRole] = useState<"merchant" | "creator">(selectedRole);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -49,7 +48,8 @@ function AuthPage() {
     });
   }, [navigate, redirect]);
 
-  const go = () => navigate({ to: redirect ?? (signupRole === "merchant" ? "/merchant" : "/my-applications") });
+  const go = () =>
+    navigate({ to: redirect ?? (selectedRole === "merchant" ? "/merchant" : "/my-applications") });
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,10 +73,9 @@ function AuthPage() {
       options: {
         emailRedirectTo: window.location.origin,
         data: {
-          role: signupRole,
+          role: "merchant",
           display_name: displayName,
-          restaurant_name: signupRole === "merchant" ? restaurantName : null,
-          instagram_handle: signupRole === "creator" ? instagram : null,
+          restaurant_name: restaurantName,
           region,
         },
       },
@@ -85,6 +84,16 @@ function AuthPage() {
     if (error) {
       toast.error(error.message);
       return;
+    }
+    if (data.session?.user) {
+      await supabase.from("merchant_profiles").insert({
+        user_id: data.session.user.id,
+        store_name: restaurantName,
+        region,
+        contact_name: displayName,
+        phone: phone || null,
+        email,
+      });
     }
     if (!data.session) {
       toast.success("註冊成功，請至信箱點擊確認信後登入");
