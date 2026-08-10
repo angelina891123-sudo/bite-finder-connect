@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedMerchantRouteImport } from './routes/_authenticated/merchant'
+import { Route as AuthenticatedMyApplicationsRouteImport } from './routes/_authenticated/my-applications'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -33,16 +34,24 @@ const AuthenticatedMerchantRoute = AuthenticatedMerchantRouteImport.update({
   path: '/merchant',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedMyApplicationsRoute =
+  AuthenticatedMyApplicationsRouteImport.update({
+    id: '/my-applications',
+    path: '/my-applications',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/merchant': typeof AuthenticatedMerchantRoute
+  '/my-applications': typeof AuthenticatedMyApplicationsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/merchant': typeof AuthenticatedMerchantRoute
+  '/my-applications': typeof AuthenticatedMyApplicationsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -50,14 +59,20 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/merchant': typeof AuthenticatedMerchantRoute
+  '/_authenticated/my-applications': typeof AuthenticatedMyApplicationsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/merchant'
+  fullPaths: '/' | '/auth' | '/merchant' | '/my-applications'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/merchant'
+  to: '/' | '/auth' | '/merchant' | '/my-applications'
   id:
-    '__root__' | '/' | '/_authenticated' | '/auth' | '/_authenticated/merchant'
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/merchant'
+    | '/_authenticated/my-applications'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -96,15 +111,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMerchantRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/my-applications': {
+      id: '/_authenticated/my-applications'
+      path: '/my-applications'
+      fullPath: '/my-applications'
+      preLoaderRoute: typeof AuthenticatedMyApplicationsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedMerchantRoute: typeof AuthenticatedMerchantRoute
+  AuthenticatedMyApplicationsRoute: typeof AuthenticatedMyApplicationsRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMerchantRoute: AuthenticatedMerchantRoute,
+  AuthenticatedMyApplicationsRoute: AuthenticatedMyApplicationsRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
