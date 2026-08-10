@@ -1,0 +1,409 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Check } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { REGIONS } from "@/lib/auth";
+import { SiteHeader } from "@/components/SiteHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+export const Route = createFileRoute("/foodie-signup")({
+  head: () => ({
+    meta: [
+      { title: "Foodie 創作者註冊｜肚肚 Foodie 媒合專區" },
+      { name: "description", content: "填寫基本資料、社群數據與內容偏好，加入肚肚 Foodie，媒合最適合你的餐廳業配案件。" },
+      { property: "og:title", content: "Foodie 創作者註冊｜肚肚" },
+      { property: "og:description", content: "三步驟完成 Foodie 註冊，開始接洽餐廳業配合作。" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: FoodieSignup,
+});
+
+const AREAS = ["大安區／信義區", "中山區／大同區", "不限地區"];
+const CATEGORIES = ["美食探店", "甜點下午茶", "飲料手搖", "親子友善餐廳", "宵夜燒烤", "開箱試吃"];
+const COLLAB_PREFS = ["免費體驗", "含現金報酬", "長期配合"];
+
+const STEPS = [
+  { n: 1, title: "基本資料", desc: "姓名、聯絡方式、居住地區" },
+  { n: 2, title: "社群數據", desc: "粉絲數、觸及與互動表現" },
+  { n: 3, title: "內容偏好", desc: "擅長類型與合作意願" },
+];
+
+function num(v: string) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+}
+
+function FoodieSignup() {
+  const navigate = useNavigate();
+  const [step, setStep] = useState(1);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const [f, setF] = useState({
+    nickname: "",
+    realName: "",
+    email: "",
+    password: "",
+    phone: "",
+    region: REGIONS[0] ?? "台北市",
+    area: AREAS[0]!,
+    ig: "",
+    igFollowers: "",
+    reels: "",
+    engagement: "",
+    threads: "",
+    threadsFollowers: "",
+    youtube: "",
+    youtubeSubs: "",
+    portfolio: "",
+  });
+  const [cats, setCats] = useState<string[]>([]);
+  const [prefs, setPrefs] = useState<string[]>([]);
+
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setF((p) => ({ ...p, [k]: e.target.value }));
+
+  const toggle = (list: string[], setList: (v: string[]) => void, v: string) =>
+    setList(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+
+  const next = () => {
+    if (step === 1) {
+      if (!f.nickname.trim() || !f.email.trim() || f.password.length < 6) {
+        toast.error("請填寫暱稱、Email，密碼至少 6 碼");
+        return;
+      }
+    }
+    setStep((s) => Math.min(3, s + 1));
+  };
+
+  const submit = async () => {
+    setBusy(true);
+    const { data, error } = await supabase.auth.signUp({
+      email: f.email.trim(),
+      password: f.password,
+      options: {
+        emailRedirectTo: window.location.origin,
+        data: {
+          role: "creator",
+          display_name: f.nickname.trim(),
+          instagram_handle: f.ig.trim() || null,
+          region: f.region,
+        },
+      },
+    });
+
+    if (error) {
+      setBusy(false);
+      toast.error(error.message);
+      return;
+    }
+
+    if (data.session?.user) {
+      const { error: pErr } = await supabase.from("foodie_profiles").insert({
+        user_id: data.session.user.id,
+        nickname: f.nickname.trim(),
+        real_name: f.realName.trim() || null,
+        email: f.email.trim(),
+        phone: f.phone.trim() || null,
+        region: f.region,
+        area: f.area,
+        ig_handle: f.ig.trim() || null,
+        ig_followers: num(f.igFollowers),
+        reels_avg_views: num(f.reels),
+        engagement_rate: Number(f.engagement) || 0,
+        threads_handle: f.threads.trim() || null,
+        threads_followers: num(f.threadsFollowers),
+        youtube_channel: f.youtube.trim() || null,
+        youtube_subscribers: num(f.youtubeSubs),
+        categories: cats,
+        collab_preferences: prefs,
+        portfolio_url: f.portfolio.trim() || null,
+      });
+      if (pErr) toast.error(pErr.message);
+      await supabase
+        .from("profiles")
+        .update({ follower_count: num(f.igFollowers), phone: f.phone.trim() || null })
+        .eq("id", data.session.user.id);
+    }
+
+    setBusy(false);
+    setDone(true);
+    if (data.session) setTimeout(() => navigate({ to: "/my-applications" }), 2200);
+  };
+
+  return (
+    <div className="min-h-screen bg-muted/40">
+      <SiteHeader />
+      <main className="mx-auto flex max-w-5xl items-center justify-center px-4 py-10">
+        <div className="grid w-full overflow-hidden rounded-3xl border border-border bg-card shadow-xl md:grid-cols-[300px_1fr]">
+          {/* side panel */}
+          <aside className="hidden flex-col bg-primary p-9 text-primary-foreground md:flex">
+            <div className="mb-6 flex h-9 w-9 items-center justify-center rounded-xl bg-primary-foreground/15 text-lg font-bold">
+              肚
+            </div>
+            <h2 className="text-xl font-semibold leading-snug">
+              加入肚肚
+              <br />
+              Foodie 創作者
+            </h2>
+            <p className="mt-3 text-xs leading-relaxed text-primary-foreground/75">
+              填寫你的基本資料與社群數據，讓我們幫你媒合最適合的餐廳業配案件。
+            </p>
+
+            <div className="my-auto flex flex-col gap-5 pt-10">
+              {STEPS.map((s) => {
+                const state = done || step > s.n ? "done" : step === s.n ? "active" : "idle";
+                return (
+                  <div key={s.n} className={`flex gap-3 ${state === "idle" ? "opacity-45" : ""}`}>
+                    <span
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold ${
+                        state === "active"
+                          ? "border-transparent bg-primary-foreground text-primary"
+                          : state === "done"
+                            ? "border-transparent bg-primary-foreground/90 text-primary"
+                            : "border-primary-foreground/60"
+                      }`}
+                    >
+                      {state === "done" ? <Check className="h-3.5 w-3.5" /> : s.n}
+                    </span>
+                    <span>
+                      <b className="block text-[13px] font-semibold">{s.title}</b>
+                      <span className="text-[11px] text-primary-foreground/65">{s.desc}</span>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <p className="mt-5 text-[11px] text-primary-foreground/55">
+              註冊即表示同意肚肚服務條款與隱私權政策
+            </p>
+          </aside>
+
+          {/* form panel */}
+          <section className="flex flex-col p-6 md:p-10">
+            {done ? (
+              <div className="m-auto max-w-sm py-16 text-center">
+                <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-accent text-primary">
+                  <Check className="h-8 w-8" />
+                </div>
+                <h3 className="text-xl font-semibold">註冊資料已送出</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  我們會依照你的粉絲數與內容偏好，開始為你媒合合適的餐廳業配案件，審核結果將透過 Email 通知你。
+                </p>
+                <Button asChild className="mt-6">
+                  <Link to="/">回到探索案件</Link>
+                </Button>
+              </div>
+            ) : (
+              <>
+                <header className="mb-6">
+                  <p className="text-[11.5px] font-bold uppercase tracking-widest text-primary">
+                    Step {step} / 3
+                  </p>
+                  <h1 className="text-xl font-semibold">{STEPS[step - 1]!.title}</h1>
+                </header>
+
+                {step === 1 && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="暱稱／創作者名稱">
+                      <Input value={f.nickname} onChange={set("nickname")} placeholder="肚肚吃不停" />
+                    </Field>
+                    <Field label="真實姓名">
+                      <Input value={f.realName} onChange={set("realName")} placeholder="王小美" />
+                    </Field>
+                    <Field label="Email">
+                      <Input type="email" value={f.email} onChange={set("email")} placeholder="you@example.com" />
+                    </Field>
+                    <Field label="密碼" hint="至少 6 碼">
+                      <Input type="password" value={f.password} onChange={set("password")} />
+                    </Field>
+                    <Field label="手機號碼">
+                      <Input value={f.phone} onChange={set("phone")} placeholder="0912-345-678" />
+                    </Field>
+                    <Field label="常駐地區">
+                      <SelectBox value={f.region} onChange={set("region")} options={REGIONS} />
+                    </Field>
+                    <Field label="主要活動範圍" full>
+                      <SelectBox value={f.area} onChange={set("area")} options={AREAS} />
+                    </Field>
+                  </div>
+                )}
+
+                {step === 2 && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Instagram 帳號">
+                      <Input value={f.ig} onChange={set("ig")} placeholder="@your_ig" />
+                    </Field>
+                    <Field label="IG 粉絲數">
+                      <Unit unit="人">
+                        <Input inputMode="numeric" value={f.igFollowers} onChange={set("igFollowers")} placeholder="12000" />
+                      </Unit>
+                    </Field>
+                    <Field label="平均 Reels 瀏覽數" hint="近 30 天">
+                      <Unit unit="次">
+                        <Input inputMode="numeric" value={f.reels} onChange={set("reels")} placeholder="8000" />
+                      </Unit>
+                    </Field>
+                    <Field label="平均貼文互動率">
+                      <Unit unit="%">
+                        <Input inputMode="decimal" value={f.engagement} onChange={set("engagement")} placeholder="4.2" />
+                      </Unit>
+                    </Field>
+                    <Field label="Threads 帳號" hint="選填">
+                      <Input value={f.threads} onChange={set("threads")} placeholder="@your_threads" />
+                    </Field>
+                    <Field label="Threads 粉絲數" hint="選填">
+                      <Unit unit="人">
+                        <Input inputMode="numeric" value={f.threadsFollowers} onChange={set("threadsFollowers")} />
+                      </Unit>
+                    </Field>
+                    <Field label="YouTube 頻道" hint="選填">
+                      <Input value={f.youtube} onChange={set("youtube")} placeholder="youtube.com/@channel" />
+                    </Field>
+                    <Field label="YouTube 訂閱數" hint="選填">
+                      <Unit unit="人">
+                        <Input inputMode="numeric" value={f.youtubeSubs} onChange={set("youtubeSubs")} />
+                      </Unit>
+                    </Field>
+                  </div>
+                )}
+
+                {step === 3 && (
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <Label>
+                        擅長內容類別 <span className="text-xs font-normal text-muted-foreground">可複選</span>
+                      </Label>
+                      <TagGroup options={CATEGORIES} selected={cats} onToggle={(v) => toggle(cats, setCats, v)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>
+                        偏好合作類型 <span className="text-xs font-normal text-muted-foreground">可複選</span>
+                      </Label>
+                      <TagGroup options={COLLAB_PREFS} selected={prefs} onToggle={(v) => toggle(prefs, setPrefs, v)} />
+                    </div>
+                    <Field label="作品案例連結" hint="選填，貼上 IG 貼文或 Reels 連結" full>
+                      <Input value={f.portfolio} onChange={set("portfolio")} placeholder="https://instagram.com/p/..." />
+                    </Field>
+                  </div>
+                )}
+
+                <div className="mt-8 flex items-center justify-between pt-4">
+                  {step > 1 ? (
+                    <Button variant="ghost" onClick={() => setStep((s) => s - 1)}>
+                      上一步
+                    </Button>
+                  ) : (
+                    <Link to="/auth" search={{ role: "creator", redirect: undefined }} className="text-sm text-muted-foreground hover:text-primary">
+                      已有帳號？前往登入
+                    </Link>
+                  )}
+                  {step < 3 ? (
+                    <Button onClick={next}>下一步</Button>
+                  ) : (
+                    <Button onClick={submit} disabled={busy}>
+                      完成註冊
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  full,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  full?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={`flex flex-col gap-1.5 ${full ? "sm:col-span-2" : ""}`}>
+      <Label className="text-[12.5px]">
+        {label}
+        {hint && <span className="ml-1 text-[10.5px] font-normal text-muted-foreground">{hint}</span>}
+      </Label>
+      {children}
+    </div>
+  );
+}
+
+function Unit({ unit, children }: { unit: string; children: React.ReactNode }) {
+  return (
+    <div className="relative">
+      {children}
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11.5px] text-muted-foreground">
+        {unit}
+      </span>
+    </div>
+  );
+}
+
+function SelectBox({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  options: readonly string[];
+}) {
+  return (
+    <select
+      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+      value={value}
+      onChange={onChange}
+    >
+      {options.map((o) => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function TagGroup({
+  options,
+  selected,
+  onToggle,
+}: {
+  options: string[];
+  selected: string[];
+  onToggle: (v: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((o) => {
+        const on = selected.includes(o);
+        return (
+          <button
+            key={o}
+            type="button"
+            onClick={() => onToggle(o)}
+            className={`rounded-full border px-4 py-2 text-[12.5px] font-medium transition-colors ${
+              on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background hover:bg-accent"
+            }`}
+          >
+            {o}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
