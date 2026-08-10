@@ -14,16 +14,175 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      applications: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          creator_id: string
+          id: string
+          message: string | null
+          status: Database["public"]["Enums"]["application_status"]
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          creator_id: string
+          id?: string
+          message?: string | null
+          status?: Database["public"]["Enums"]["application_status"]
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          creator_id?: string
+          id?: string
+          message?: string | null
+          status?: Database["public"]["Enums"]["application_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "applications_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          collab_type: string
+          cover_url: string | null
+          created_at: string
+          deadline: string | null
+          description: string | null
+          id: string
+          merchant_id: string
+          min_followers: number
+          region: string
+          restaurant_name: string | null
+          reward: string
+          slots: number
+          status: Database["public"]["Enums"]["campaign_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          collab_type: string
+          cover_url?: string | null
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          merchant_id: string
+          min_followers?: number
+          region: string
+          restaurant_name?: string | null
+          reward: string
+          slots?: number
+          status?: Database["public"]["Enums"]["campaign_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          collab_type?: string
+          cover_url?: string | null
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          id?: string
+          merchant_id?: string
+          min_followers?: number
+          region?: string
+          restaurant_name?: string | null
+          reward?: string
+          slots?: number
+          status?: Database["public"]["Enums"]["campaign_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          bio: string | null
+          created_at: string
+          display_name: string | null
+          follower_count: number
+          id: string
+          instagram_handle: string | null
+          phone: string | null
+          region: string | null
+          restaurant_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          bio?: string | null
+          created_at?: string
+          display_name?: string | null
+          follower_count?: number
+          id: string
+          instagram_handle?: string | null
+          phone?: string | null
+          region?: string | null
+          restaurant_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bio?: string | null
+          created_at?: string
+          display_name?: string | null
+          follower_count?: number
+          id?: string
+          instagram_handle?: string | null
+          phone?: string | null
+          region?: string | null
+          restaurant_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "merchant" | "creator"
+      application_status: "pending" | "approved" | "rejected"
+      campaign_status: "draft" | "published" | "closed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +309,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "merchant", "creator"],
+      application_status: ["pending", "approved", "rejected"],
+      campaign_status: ["draft", "published", "closed"],
+    },
   },
 } as const
