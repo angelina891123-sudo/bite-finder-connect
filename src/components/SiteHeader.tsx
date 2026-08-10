@@ -43,8 +43,7 @@ export function SiteHeader() {
         </span>
       </Link>
       <Link
-        to="/auth"
-        search={{ role: "creator", redirect: "/my-applications" }}
+        to="/my-applications"
         className="flex gap-3 rounded-lg p-3 transition-colors hover:bg-accent"
       >
         <ClipboardList className="mt-0.5 h-5 w-5 text-primary" />

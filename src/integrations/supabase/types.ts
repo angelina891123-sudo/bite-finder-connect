@@ -106,6 +106,117 @@ export type Database = {
         }
         Relationships: []
       }
+      foodie_profiles: {
+        Row: {
+          area: string | null
+          categories: string[]
+          collab_preferences: string[]
+          created_at: string
+          email: string | null
+          engagement_rate: number
+          id: string
+          ig_followers: number
+          ig_handle: string | null
+          nickname: string
+          phone: string | null
+          portfolio_url: string | null
+          real_name: string | null
+          reels_avg_views: number
+          region: string | null
+          threads_followers: number
+          threads_handle: string | null
+          updated_at: string
+          user_id: string
+          youtube_channel: string | null
+          youtube_subscribers: number
+        }
+        Insert: {
+          area?: string | null
+          categories?: string[]
+          collab_preferences?: string[]
+          created_at?: string
+          email?: string | null
+          engagement_rate?: number
+          id?: string
+          ig_followers?: number
+          ig_handle?: string | null
+          nickname: string
+          phone?: string | null
+          portfolio_url?: string | null
+          real_name?: string | null
+          reels_avg_views?: number
+          region?: string | null
+          threads_followers?: number
+          threads_handle?: string | null
+          updated_at?: string
+          user_id: string
+          youtube_channel?: string | null
+          youtube_subscribers?: number
+        }
+        Update: {
+          area?: string | null
+          categories?: string[]
+          collab_preferences?: string[]
+          created_at?: string
+          email?: string | null
+          engagement_rate?: number
+          id?: string
+          ig_followers?: number
+          ig_handle?: string | null
+          nickname?: string
+          phone?: string | null
+          portfolio_url?: string | null
+          real_name?: string | null
+          reels_avg_views?: number
+          region?: string | null
+          threads_followers?: number
+          threads_handle?: string | null
+          updated_at?: string
+          user_id?: string
+          youtube_channel?: string | null
+          youtube_subscribers?: number
+        }
+        Relationships: []
+      }
+      merchant_profiles: {
+        Row: {
+          address: string | null
+          contact_name: string | null
+          created_at: string
+          email: string | null
+          id: string
+          phone: string | null
+          region: string | null
+          store_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          phone?: string | null
+          region?: string | null
+          store_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          phone?: string | null
+          region?: string | null
+          store_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           bio: string | null
