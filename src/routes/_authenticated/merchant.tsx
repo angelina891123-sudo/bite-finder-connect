@@ -125,7 +125,10 @@ function MerchantBackoffice() {
 
   const decide = async (id: string, status: "approved" | "rejected") => {
     const { error } = await supabase.from("applications").update({ status }).eq("id", id);
-    if (error) return toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success(status === "approved" ? "已核准申請" : "已拒絕申請");
     void qc.invalidateQueries({ queryKey: ["merchant-applications", user?.id] });
   };
