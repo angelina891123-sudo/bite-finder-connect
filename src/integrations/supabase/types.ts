@@ -17,6 +17,8 @@ export type Database = {
       applications: {
         Row: {
           campaign_id: string
+          completed: boolean
+          completed_at: string | null
           created_at: string
           creator_id: string
           id: string
@@ -26,6 +28,8 @@ export type Database = {
         }
         Insert: {
           campaign_id: string
+          completed?: boolean
+          completed_at?: string | null
           created_at?: string
           creator_id: string
           id?: string
@@ -35,6 +39,8 @@ export type Database = {
         }
         Update: {
           campaign_id?: string
+          completed?: boolean
+          completed_at?: string | null
           created_at?: string
           creator_id?: string
           id?: string
@@ -123,10 +129,13 @@ export type Database = {
           real_name: string | null
           reels_avg_views: number
           region: string | null
+          review_note: string | null
+          reviewed_at: string | null
           threads_followers: number
           threads_handle: string | null
           updated_at: string
           user_id: string
+          verification_status: Database["public"]["Enums"]["verification_status"]
           youtube_channel: string | null
           youtube_subscribers: number
         }
@@ -146,10 +155,13 @@ export type Database = {
           real_name?: string | null
           reels_avg_views?: number
           region?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
           threads_followers?: number
           threads_handle?: string | null
           updated_at?: string
           user_id: string
+          verification_status?: Database["public"]["Enums"]["verification_status"]
           youtube_channel?: string | null
           youtube_subscribers?: number
         }
@@ -169,10 +181,13 @@ export type Database = {
           real_name?: string | null
           reels_avg_views?: number
           region?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
           threads_followers?: number
           threads_handle?: string | null
           updated_at?: string
           user_id?: string
+          verification_status?: Database["public"]["Enums"]["verification_status"]
           youtube_channel?: string | null
           youtube_subscribers?: number
         }
@@ -187,9 +202,12 @@ export type Database = {
           id: string
           phone: string | null
           region: string | null
+          review_note: string | null
+          reviewed_at: string | null
           store_name: string
           updated_at: string
           user_id: string
+          verification_status: Database["public"]["Enums"]["verification_status"]
         }
         Insert: {
           address?: string | null
@@ -199,9 +217,12 @@ export type Database = {
           id?: string
           phone?: string | null
           region?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
           store_name: string
           updated_at?: string
           user_id: string
+          verification_status?: Database["public"]["Enums"]["verification_status"]
         }
         Update: {
           address?: string | null
@@ -211,9 +232,12 @@ export type Database = {
           id?: string
           phone?: string | null
           region?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
           store_name?: string
           updated_at?: string
           user_id?: string
+          verification_status?: Database["public"]["Enums"]["verification_status"]
         }
         Relationships: []
       }
@@ -294,6 +318,7 @@ export type Database = {
       app_role: "admin" | "merchant" | "creator"
       application_status: "pending" | "approved" | "rejected"
       campaign_status: "draft" | "published" | "closed"
+      verification_status: "pending" | "approved" | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -424,6 +449,7 @@ export const Constants = {
       app_role: ["admin", "merchant", "creator"],
       application_status: ["pending", "approved", "rejected"],
       campaign_status: ["draft", "published", "closed"],
+      verification_status: ["pending", "approved", "rejected"],
     },
   },
 } as const
