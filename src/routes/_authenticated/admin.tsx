@@ -95,7 +95,7 @@ function AdminPage() {
       .from(table)
       .update({ verification_status: status, reviewed_at: new Date().toISOString() })
       .eq("id", id);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     toast.success(status === "approved" ? "已審核通過" : "已拒絕");
     void qc.invalidateQueries({ queryKey: [table === "merchant_profiles" ? "admin-merchants" : "admin-foodies"] });
   };
@@ -105,14 +105,14 @@ function AdminPage() {
       .from("applications")
       .update({ completed, completed_at: completed ? new Date().toISOString() : null })
       .eq("id", id);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     toast.success(completed ? "已標記合作完成" : "已取消完成標記");
     void qc.invalidateQueries({ queryKey: ["admin-applications"] });
   };
 
   const setCampaignStatus = async (id: string, status: "published" | "closed") => {
     const { error } = await supabase.from("campaigns").update({ status }).eq("id", id);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     toast.success("案件狀態已更新");
     void qc.invalidateQueries({ queryKey: ["admin-campaigns"] });
   };
