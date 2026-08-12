@@ -137,7 +137,7 @@ function MerchantBackoffice() {
     await qc.cancelQueries();
     qc.clear();
     await supabase.auth.signOut();
-    navigate({ to: "/auth", search: { role: "merchant" }, replace: true });
+    navigate({ to: "/auth", search: { role: "merchant", redirect: undefined }, replace: true });
   };
 
   if (loading) return <div className="p-10 text-muted-foreground">載入中…</div>;
