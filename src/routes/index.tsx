@@ -1,10 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CalendarDays, MapPin, Users, Gift, Search, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, REGIONS } from "@/lib/auth";
+import { getCampaignPhotosMap } from "@/lib/campaign-photos";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,6 +70,12 @@ function Index() {
       if (error) throw error;
       return (data ?? []) as Campaign[];
     },
+  });
+
+  const getPhotosMap = useServerFn(getCampaignPhotosMap);
+  const { data: photosMap = {} } = useQuery({
+    queryKey: ["local-campaign-photos"],
+    queryFn: () => getPhotosMap(),
   });
 
   const { data: myFollowers = 0 } = useQuery({
@@ -183,8 +191,13 @@ function Index() {
           </p>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((c) => (
+            {filtered.map((c) => {
+              const photos = photosMap[c.id] ?? [];
+              return (
               <Card key={c.id} className="flex flex-col">
+                {photos[0] && (
+                  <img src={photos[0]} alt={c.title} className="h-40 w-full rounded-t-xl object-cover" />
+                )}
                 <CardHeader>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <MapPin className="h-3.5 w-3.5" /> {c.region}
@@ -213,7 +226,8 @@ function Index() {
                   </Button>
                 </CardFooter>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
