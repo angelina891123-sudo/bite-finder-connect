@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { REGIONS } from "@/lib/auth";
+import { areasOf, passwordScore } from "@/lib/regions";
+import { PasswordStrength } from "@/components/PasswordStrength";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +25,6 @@ export const Route = createFileRoute("/foodie-signup")({
   component: FoodieSignup,
 });
 
-const AREAS = ["大安區／信義區", "中山區／大同區", "不限地區"];
 const CATEGORIES = ["美食探店", "甜點下午茶", "飲料手搖", "親子友善餐廳", "宵夜燒烤", "開箱試吃"];
 const COLLAB_PREFS = ["免費體驗", "含現金報酬", "長期配合"];
 
@@ -51,11 +52,10 @@ function FoodieSignup() {
     password: "",
     phone: "",
     region: REGIONS[0] ?? "台北市",
-    area: AREAS[0]!,
     ig: "",
+    igUrl: "",
     igFollowers: "",
     reels: "",
-    engagement: "",
     threads: "",
     threadsFollowers: "",
     youtube: "",
@@ -64,6 +64,7 @@ function FoodieSignup() {
   });
   const [cats, setCats] = useState<string[]>([]);
   const [prefs, setPrefs] = useState<string[]>([]);
+  const [areas, setAreas] = useState<string[]>([]);
 
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setF((p) => ({ ...p, [k]: e.target.value }));
@@ -73,8 +74,12 @@ function FoodieSignup() {
 
   const next = () => {
     if (step === 1) {
-      if (!f.nickname.trim() || !f.email.trim() || f.password.length < 6) {
-        toast.error("請填寫暱稱、Email，密碼至少 6 碼");
+      if (!f.nickname.trim() || !f.email.trim()) {
+        toast.error("請填寫暱稱與 Email");
+        return;
+      }
+      if (!passwordScore(f.password).strong) {
+        toast.error("密碼強度不足，請至少 8 碼並包含英文字母與數字");
         return;
       }
     }
@@ -111,11 +116,12 @@ function FoodieSignup() {
         email: f.email.trim(),
         phone: f.phone.trim() || null,
         region: f.region,
-        area: f.area,
+        area: areas[0] ?? null,
+        areas,
         ig_handle: f.ig.trim() || null,
+        ig_url: f.igUrl.trim() || null,
         ig_followers: num(f.igFollowers),
         reels_avg_views: num(f.reels),
-        engagement_rate: Number(f.engagement) || 0,
         threads_handle: f.threads.trim() || null,
         threads_followers: num(f.threadsFollowers),
         youtube_channel: f.youtube.trim() || null,
@@ -133,7 +139,7 @@ function FoodieSignup() {
 
     setBusy(false);
     setDone(true);
-    if (data.session) setTimeout(() => navigate({ to: "/my-applications" }), 2200);
+    if (data.session) setTimeout(() => navigate({ to: "/my-applications" }), 3000);
   };
 
   return (
@@ -192,10 +198,13 @@ function FoodieSignup() {
                 <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-accent text-primary">
                   <Check className="h-8 w-8" />
                 </div>
-                <h3 className="text-xl font-semibold">註冊資料已送出</h3>
+                <h3 className="text-xl font-semibold">請前往信箱完成驗證</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  我們會依照你的粉絲數與內容偏好，開始為你媒合合適的餐廳業配案件，審核結果將透過 Email 通知你。
+                  我們已寄出驗證信到 <b className="text-foreground">{f.email}</b>，請點擊信中的連結完成 Email 驗證後再登入。
+                  <br />
+                  驗證完成後，我們會依照你的粉絲數與內容偏好為你媒合合適的餐廳業配案件。
                 </p>
+                <p className="mt-3 text-xs text-muted-foreground">沒收到信？請檢查垃圾郵件匣或稍後再試。</p>
                 <Button asChild className="mt-6">
                   <Link to="/">回到探索案件</Link>
                 </Button>
@@ -220,17 +229,29 @@ function FoodieSignup() {
                     <Field label="Email">
                       <Input type="email" value={f.email} onChange={set("email")} placeholder="you@example.com" />
                     </Field>
-                    <Field label="密碼" hint="至少 6 碼">
+                    <Field label="密碼" hint="至少 8 碼，含英文字母與數字">
                       <Input type="password" value={f.password} onChange={set("password")} />
+                      <PasswordStrength password={f.password} />
                     </Field>
                     <Field label="手機號碼">
                       <Input value={f.phone} onChange={set("phone")} placeholder="0912-345-678" />
                     </Field>
                     <Field label="常駐地區">
-                      <SelectBox value={f.region} onChange={set("region")} options={REGIONS} />
+                      <SelectBox
+                        value={f.region}
+                        onChange={(e) => {
+                          setF((p) => ({ ...p, region: e.target.value }));
+                          setAreas([]);
+                        }}
+                        options={REGIONS}
+                      />
                     </Field>
-                    <Field label="主要活動範圍" full>
-                      <SelectBox value={f.area} onChange={set("area")} options={AREAS} />
+                    <Field label="主要活動範圍" hint="可複選，依所選縣市顯示" full>
+                      <TagGroup
+                        options={areasOf(f.region)}
+                        selected={areas}
+                        onToggle={(v) => toggle(areas, setAreas, v)}
+                      />
                     </Field>
                   </div>
                 )}
@@ -250,10 +271,8 @@ function FoodieSignup() {
                         <Input inputMode="numeric" value={f.reels} onChange={set("reels")} placeholder="8000" />
                       </Unit>
                     </Field>
-                    <Field label="平均貼文互動率">
-                      <Unit unit="%">
-                        <Input inputMode="decimal" value={f.engagement} onChange={set("engagement")} placeholder="4.2" />
-                      </Unit>
+                    <Field label="IG 連結">
+                      <Input value={f.igUrl} onChange={set("igUrl")} placeholder="https://instagram.com/your_ig" />
                     </Field>
                     <Field label="Threads 帳號" hint="選填">
                       <Input value={f.threads} onChange={set("threads")} placeholder="@your_threads" />

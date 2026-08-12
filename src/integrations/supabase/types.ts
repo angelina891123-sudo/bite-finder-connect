@@ -24,6 +24,8 @@ export type Database = {
           id: string
           message: string | null
           status: Database["public"]["Enums"]["application_status"]
+          submission_url: string | null
+          submitted_at: string | null
           updated_at: string
         }
         Insert: {
@@ -35,6 +37,8 @@ export type Database = {
           id?: string
           message?: string | null
           status?: Database["public"]["Enums"]["application_status"]
+          submission_url?: string | null
+          submitted_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -46,6 +50,8 @@ export type Database = {
           id?: string
           message?: string | null
           status?: Database["public"]["Enums"]["application_status"]
+          submission_url?: string | null
+          submitted_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -115,6 +121,7 @@ export type Database = {
       foodie_profiles: {
         Row: {
           area: string | null
+          areas: string[]
           categories: string[]
           collab_preferences: string[]
           created_at: string
@@ -123,6 +130,7 @@ export type Database = {
           id: string
           ig_followers: number
           ig_handle: string | null
+          ig_url: string | null
           nickname: string
           phone: string | null
           portfolio_url: string | null
@@ -141,6 +149,7 @@ export type Database = {
         }
         Insert: {
           area?: string | null
+          areas?: string[]
           categories?: string[]
           collab_preferences?: string[]
           created_at?: string
@@ -149,6 +158,7 @@ export type Database = {
           id?: string
           ig_followers?: number
           ig_handle?: string | null
+          ig_url?: string | null
           nickname: string
           phone?: string | null
           portfolio_url?: string | null
@@ -167,6 +177,7 @@ export type Database = {
         }
         Update: {
           area?: string | null
+          areas?: string[]
           categories?: string[]
           collab_preferences?: string[]
           created_at?: string
@@ -175,6 +186,7 @@ export type Database = {
           id?: string
           ig_followers?: number
           ig_handle?: string | null
+          ig_url?: string | null
           nickname?: string
           phone?: string | null
           portfolio_url?: string | null

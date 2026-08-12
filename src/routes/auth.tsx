@@ -9,6 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { PasswordStrength } from "@/components/PasswordStrength";
+import { passwordScore } from "@/lib/regions";
 
 type Search = { role: "merchant" | "creator" | undefined; redirect: string | undefined };
 
@@ -41,6 +51,9 @@ function AuthPage() {
   const [phone, setPhone] = useState("");
   const [region, setRegion] = useState<string>(REGIONS[0] ?? "台北市");
   const [busy, setBusy] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotBusy, setForgotBusy] = useState(false);
 
   useEffect(() => {
     void supabase.auth.getSession().then(({ data }) => {
@@ -66,6 +79,10 @@ function AuthPage() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!passwordScore(password).strong) {
+      toast.error("密碼強度不足，請至少 8 碼並包含英文字母與數字");
+      return;
+    }
     setBusy(true);
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -104,6 +121,21 @@ function AuthPage() {
     go();
   };
 
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotBusy(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setForgotBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("重設密碼信件已寄出，請至信箱收信");
+    setForgotOpen(false);
+  };
+
   return (
     <div className="min-h-screen bg-muted/40">
       <SiteHeader />
@@ -130,7 +162,19 @@ function AuthPage() {
                     <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="password">密碼</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password">密碼</Label>
+                      <button
+                        type="button"
+                        className="text-xs text-muted-foreground hover:text-primary"
+                        onClick={() => {
+                          setForgotEmail(email);
+                          setForgotOpen(true);
+                        }}
+                      >
+                        忘記密碼？
+                      </button>
+                    </div>
                     <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
                   </div>
                   <Button type="submit" className="w-full" disabled={busy}>
@@ -185,6 +229,7 @@ function AuthPage() {
                   <div className="space-y-1.5">
                     <Label htmlFor="password2">密碼</Label>
                     <Input id="password2" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
+                    <PasswordStrength password={password} />
                   </div>
                   <Button type="submit" className="w-full" disabled={busy}>
                     建立帳號
@@ -198,6 +243,35 @@ function AuthPage() {
         <Link to="/" className="text-center text-sm text-muted-foreground hover:text-primary">
           回到首頁
         </Link>
+
+        <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>忘記密碼</DialogTitle>
+              <DialogDescription>輸入註冊時使用的 Email，我們會寄送重設密碼連結給你。</DialogDescription>
+            </DialogHeader>
+            <form className="space-y-4" onSubmit={handleForgot}>
+              <div className="space-y-1.5">
+                <Label htmlFor="fmail">電子郵件</Label>
+                <Input
+                  id="fmail"
+                  type="email"
+                  required
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setForgotOpen(false)}>
+                  取消
+                </Button>
+                <Button type="submit" disabled={forgotBusy}>
+                  寄送重設信
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
