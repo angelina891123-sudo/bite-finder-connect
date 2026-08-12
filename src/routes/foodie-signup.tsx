@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { REGIONS } from "@/lib/auth";
+import { areasOf, passwordScore } from "@/lib/regions";
+import { PasswordStrength } from "@/components/PasswordStrength";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +25,6 @@ export const Route = createFileRoute("/foodie-signup")({
   component: FoodieSignup,
 });
 
-const AREAS = ["大安區／信義區", "中山區／大同區", "不限地區"];
 const CATEGORIES = ["美食探店", "甜點下午茶", "飲料手搖", "親子友善餐廳", "宵夜燒烤", "開箱試吃"];
 const COLLAB_PREFS = ["免費體驗", "含現金報酬", "長期配合"];
 
@@ -51,11 +52,10 @@ function FoodieSignup() {
     password: "",
     phone: "",
     region: REGIONS[0] ?? "台北市",
-    area: AREAS[0]!,
     ig: "",
+    igUrl: "",
     igFollowers: "",
     reels: "",
-    engagement: "",
     threads: "",
     threadsFollowers: "",
     youtube: "",
@@ -64,6 +64,7 @@ function FoodieSignup() {
   });
   const [cats, setCats] = useState<string[]>([]);
   const [prefs, setPrefs] = useState<string[]>([]);
+  const [areas, setAreas] = useState<string[]>([]);
 
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setF((p) => ({ ...p, [k]: e.target.value }));
@@ -73,8 +74,12 @@ function FoodieSignup() {
 
   const next = () => {
     if (step === 1) {
-      if (!f.nickname.trim() || !f.email.trim() || f.password.length < 6) {
-        toast.error("請填寫暱稱、Email，密碼至少 6 碼");
+      if (!f.nickname.trim() || !f.email.trim()) {
+        toast.error("請填寫暱稱與 Email");
+        return;
+      }
+      if (!passwordScore(f.password).strong) {
+        toast.error("密碼強度不足，請至少 8 碼並包含英文字母與數字");
         return;
       }
     }
@@ -111,11 +116,12 @@ function FoodieSignup() {
         email: f.email.trim(),
         phone: f.phone.trim() || null,
         region: f.region,
-        area: f.area,
+        area: areas[0] ?? null,
+        areas,
         ig_handle: f.ig.trim() || null,
+        ig_url: f.igUrl.trim() || null,
         ig_followers: num(f.igFollowers),
         reels_avg_views: num(f.reels),
-        engagement_rate: Number(f.engagement) || 0,
         threads_handle: f.threads.trim() || null,
         threads_followers: num(f.threadsFollowers),
         youtube_channel: f.youtube.trim() || null,
@@ -133,7 +139,7 @@ function FoodieSignup() {
 
     setBusy(false);
     setDone(true);
-    if (data.session) setTimeout(() => navigate({ to: "/my-applications" }), 2200);
+    if (data.session) setTimeout(() => navigate({ to: "/my-applications" }), 3000);
   };
 
   return (
