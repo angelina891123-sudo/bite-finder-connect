@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CalendarDays, MapPin, Users, Gift, Search } from "lucide-react";
+import { CalendarDays, MapPin, Users, Gift, Search, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, REGIONS } from "@/lib/auth";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -69,6 +69,22 @@ function Index() {
       return (data ?? []) as Campaign[];
     },
   });
+
+  const { data: myFollowers = 0 } = useQuery({
+    queryKey: ["my-followers", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("foodie_profiles")
+        .select("ig_followers,threads_followers,youtube_subscribers")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (!data) return 0;
+      return Math.max(data.ig_followers ?? 0, data.threads_followers ?? 0, data.youtube_subscribers ?? 0);
+    },
+  });
+
+  const belowThreshold = target ? myFollowers < target.min_followers : false;
 
   const filtered = campaigns.filter(
     (c) =>
@@ -218,6 +234,15 @@ function Index() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
           />
+          {belowThreshold && (
+            <div className="flex gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                此案件粉絲門檻為 {target?.min_followers.toLocaleString()} 人，你目前登錄的粉絲數為{" "}
+                {myFollowers.toLocaleString()} 人，尚未達標。仍可送出申請，但商家可能不予核准。
+              </span>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setTarget(null)}>
               取消
