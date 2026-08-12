@@ -20,6 +20,10 @@ dist-ssr
 .wrangler/
 .dev.vars
 
+# Local dev-only file storage (see src/routes/_authenticated/merchant.tsx)
+/local-data/
+/public/uploads/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

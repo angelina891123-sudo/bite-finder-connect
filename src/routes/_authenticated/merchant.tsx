@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createServerFn, useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   BarChart3,
@@ -11,6 +12,8 @@ import {
   Settings,
   Plus,
   LogOut,
+  ImagePlus,
+  X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, REGIONS, COLLAB_TYPES } from "@/lib/auth";
@@ -74,6 +77,56 @@ type Application = {
   created_at: string;
 };
 
+// --- Dev-only local photo storage -----------------------------------------
+// campaigns.photos isn't in the Supabase schema yet, so uploaded photos are
+// kept on local disk instead. Only works under `npm run dev` (Node fs access);
+// swap for Supabase Storage before deploying.
+const getCampaignPhotosMap = createServerFn({ method: "GET" }).handler(async () => {
+  const { readFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  try {
+    const raw = await readFile(join(process.cwd(), "local-data", "campaign-photos.json"), "utf-8");
+    return JSON.parse(raw) as Record<string, string[]>;
+  } catch {
+    return {} as Record<string, string[]>;
+  }
+});
+
+const uploadCampaignPhoto = createServerFn({ method: "POST" })
+  .validator((data: unknown) => {
+    if (!(data instanceof FormData)) throw new Error("Expected FormData");
+    const file = data.get("file");
+    const campaignId = data.get("campaignId");
+    if (!(file instanceof File)) throw new Error("缺少檔案");
+    if (typeof campaignId !== "string" || !campaignId) throw new Error("缺少 campaignId");
+    return { file, campaignId };
+  })
+  .handler(async ({ data }) => {
+    const { mkdir, readFile, writeFile } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+
+    const uploadsDir = join(process.cwd(), "public", "uploads", "campaigns", data.campaignId);
+    await mkdir(uploadsDir, { recursive: true });
+    const ext = data.file.name.split(".").pop() || "jpg";
+    const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    await writeFile(join(uploadsDir, filename), Buffer.from(await data.file.arrayBuffer()));
+    const url = `/uploads/campaigns/${data.campaignId}/${filename}`;
+
+    const dbDir = join(process.cwd(), "local-data");
+    const dbPath = join(dbDir, "campaign-photos.json");
+    await mkdir(dbDir, { recursive: true });
+    let map: Record<string, string[]> = {};
+    try {
+      map = JSON.parse(await readFile(dbPath, "utf-8"));
+    } catch {
+      // no local db yet
+    }
+    map[data.campaignId] = [...(map[data.campaignId] ?? []), url];
+    await writeFile(dbPath, JSON.stringify(map, null, 2));
+
+    return { url };
+  });
+
 function MerchantBackoffice() {
   const { user, isMerchant, loading } = useAuth();
   const navigate = useNavigate();
@@ -93,6 +146,12 @@ function MerchantBackoffice() {
       if (error) throw error;
       return (data ?? []) as Campaign[];
     },
+  });
+
+  const getPhotosMap = useServerFn(getCampaignPhotosMap);
+  const { data: photosMap = {} } = useQuery({
+    queryKey: ["local-campaign-photos"],
+    queryFn: () => getPhotosMap(),
   });
 
   const { data: applications = [] } = useQuery({
@@ -219,6 +278,7 @@ function MerchantBackoffice() {
               )}
               {campaigns.map((c) => {
                 const apps = applications.filter((a) => a.campaign_id === c.id);
+                const photos = photosMap[c.id] ?? [];
                 return (
                   <Card key={c.id}>
                     <CardHeader>
@@ -234,6 +294,18 @@ function MerchantBackoffice() {
                       </p>
                     </CardHeader>
                     <CardContent className="space-y-3">
+                      {photos.length > 0 && (
+                        <div className="flex gap-2 overflow-x-auto">
+                          {photos.map((url) => (
+                            <img
+                              key={url}
+                              src={url}
+                              alt={c.title}
+                              className="h-16 w-16 shrink-0 rounded-md border border-border object-cover"
+                            />
+                          ))}
+                        </div>
+                      )}
                       <p className="text-sm">獎勵：{c.reward}</p>
                       <div className="space-y-2">
                         <p className="text-xs font-semibold text-muted-foreground">收到的申請（{apps.length}）</p>
@@ -290,7 +362,10 @@ function MerchantBackoffice() {
       <NewCampaignDialog
         open={open}
         onOpenChange={setOpen}
-        onCreated={() => void qc.invalidateQueries({ queryKey: ["merchant-campaigns", user?.id] })}
+        onCreated={() => {
+          void qc.invalidateQueries({ queryKey: ["merchant-campaigns", user?.id] });
+          void qc.invalidateQueries({ queryKey: ["local-campaign-photos"] });
+        }}
         userId={user?.id ?? ""}
       />
     </div>
@@ -351,6 +426,9 @@ function PlaceholderSection({ section }: { section: MenuKey }) {
   );
 }
 
+const MAX_PHOTOS = 6;
+const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
+
 function NewCampaignDialog({
   open,
   onOpenChange,
@@ -374,32 +452,81 @@ function NewCampaignDialog({
     deadline: "",
     status: "published" as "published" | "draft",
   });
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const uploadPhoto = useServerFn(uploadCampaignPhoto);
+
+  useEffect(() => {
+    const urls = photos.map((f) => URL.createObjectURL(f));
+    setPreviews(urls);
+    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+  }, [photos]);
+
+  useEffect(() => {
+    if (!open) {
+      setPhotos([]);
+    }
+  }, [open]);
+
+  const addPhotos = (files: FileList | null) => {
+    if (!files) return;
+    const incoming = Array.from(files).filter((f) => {
+      if (!f.type.startsWith("image/")) {
+        toast.error(`${f.name} 不是圖片檔案`);
+        return false;
+      }
+      if (f.size > MAX_PHOTO_SIZE) {
+        toast.error(`${f.name} 超過 5MB 限制`);
+        return false;
+      }
+      return true;
+    });
+    setPhotos((prev) => [...prev, ...incoming].slice(0, MAX_PHOTOS));
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadPhotos = async (campaignId: string) => {
+    for (const file of photos) {
+      const formData = new FormData();
+      formData.set("file", file);
+      formData.set("campaignId", campaignId);
+      await uploadPhoto({ data: formData });
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const { error } = await supabase.from("campaigns").insert({
-      merchant_id: userId,
-      title: form.title,
-      restaurant_name: form.restaurant_name || null,
-      description: form.description || null,
-      region: form.region,
-      min_followers: Number(form.min_followers),
-      collab_type: form.collab_type,
-      reward: form.reward,
-      slots: Number(form.slots),
-      deadline: form.deadline || null,
-      status: form.status,
-    });
-    setBusy(false);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      const campaignId = crypto.randomUUID();
+      await uploadPhotos(campaignId);
+      const { error } = await supabase.from("campaigns").insert({
+        id: campaignId,
+        merchant_id: userId,
+        title: form.title,
+        restaurant_name: form.restaurant_name || null,
+        description: form.description || null,
+        region: form.region,
+        min_followers: Number(form.min_followers),
+        collab_type: form.collab_type,
+        reward: form.reward,
+        slots: Number(form.slots),
+        deadline: form.deadline || null,
+        status: form.status,
+      });
+      if (error) throw error;
+      toast.success("案件已上架");
+      onOpenChange(false);
+      onCreated();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "上傳失敗，請稍後再試");
+    } finally {
+      setBusy(false);
     }
-    toast.success("案件已上架");
-    onOpenChange(false);
-    onCreated();
   };
 
   return (
@@ -474,6 +601,40 @@ function NewCampaignDialog({
           <div className="space-y-1.5">
             <Label>申請截止日</Label>
             <Input type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>案件照片（最多 {MAX_PHOTOS} 張）</Label>
+            <div className="flex flex-wrap gap-2">
+              {previews.map((src, i) => (
+                <div key={src} className="relative h-20 w-20 shrink-0">
+                  <img src={src} alt="" className="h-full w-full rounded-md border border-border object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(i)}
+                    className="absolute -right-1.5 -top-1.5 rounded-full bg-foreground p-0.5 text-background"
+                    aria-label="移除照片"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {photos.length < MAX_PHOTOS && (
+                <label className="flex h-20 w-20 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed border-input text-muted-foreground hover:bg-accent">
+                  <ImagePlus className="h-5 w-5" />
+                  <span className="text-xs">上傳</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      addPhotos(e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              )}
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label>案件說明</Label>
