@@ -11,6 +11,10 @@ import {
   Settings,
   Plus,
   LogOut,
+  TrendingUp,
+  Pencil,
+  X,
+  ImagePlus,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, REGIONS, COLLAB_TYPES } from "@/lib/auth";
@@ -47,6 +51,7 @@ const MENU = [
   { key: "menu", label: "商品／菜單", icon: UtensilsCrossed },
   { key: "members", label: "會員管理", icon: Users2 },
   { key: "foodie", label: "Foodie 案件媒合", icon: Megaphone },
+  { key: "performance", label: "合作成效", icon: TrendingUp },
   { key: "settings", label: "店家設定", icon: Settings },
 ] as const;
 
@@ -55,12 +60,15 @@ type MenuKey = (typeof MENU)[number]["key"];
 type Campaign = {
   id: string;
   title: string;
+  restaurant_name: string | null;
+  description: string | null;
   region: string;
   collab_type: string;
   reward: string;
   slots: number;
   min_followers: number;
   deadline: string | null;
+  photos: string[];
   status: "draft" | "published" | "closed";
   created_at: string;
 };
@@ -71,6 +79,8 @@ type Application = {
   creator_id: string;
   message: string | null;
   status: "pending" | "approved" | "rejected";
+  submission_url: string | null;
+  completed: boolean;
   created_at: string;
 };
 
