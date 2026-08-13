@@ -74,6 +74,7 @@ export type Database = {
           id: string
           merchant_id: string
           min_followers: number
+          photos: string[]
           region: string
           restaurant_name: string | null
           reward: string
@@ -91,6 +92,7 @@ export type Database = {
           id?: string
           merchant_id: string
           min_followers?: number
+          photos?: string[]
           region: string
           restaurant_name?: string | null
           reward: string
@@ -108,6 +110,7 @@ export type Database = {
           id?: string
           merchant_id?: string
           min_followers?: number
+          photos?: string[]
           region?: string
           restaurant_name?: string | null
           reward?: string
