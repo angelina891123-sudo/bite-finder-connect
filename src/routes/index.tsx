@@ -46,6 +46,7 @@ type Campaign = {
   reward: string;
   slots: number;
   deadline: string | null;
+  photos: string[] | null;
 };
 
 function Index() {
@@ -62,7 +63,7 @@ function Index() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("campaigns")
-        .select("id,title,description,restaurant_name,region,min_followers,collab_type,reward,slots,deadline")
+        .select("id,title,description,restaurant_name,region,min_followers,collab_type,reward,slots,deadline,photos")
         .eq("status", "published")
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -185,6 +186,14 @@ function Index() {
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((c) => (
               <Card key={c.id} className="flex flex-col">
+                {c.photos && c.photos.length > 0 && (
+                  <img
+                    src={c.photos[0]}
+                    alt={`${c.title} 案件照片`}
+                    loading="lazy"
+                    className="h-40 w-full rounded-t-xl object-cover"
+                  />
+                )}
                 <CardHeader>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <MapPin className="h-3.5 w-3.5" /> {c.region}
