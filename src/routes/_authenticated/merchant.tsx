@@ -399,72 +399,207 @@ function PlaceholderSection({ section }: { section: MenuKey }) {
   );
 }
 
-function NewCampaignDialog({
+function PerformanceSection({
+  campaigns,
+  applications,
+  creators,
+}: {
+  campaigns: Campaign[];
+  applications: Application[];
+  creators: Record<string, { display_name: string | null; instagram_handle: string | null; follower_count: number }>;
+}) {
+  const mine = applications.filter((a) => campaigns.some((c) => c.id === a.campaign_id));
+  const approved = mine.filter((a) => a.status === "approved");
+  const completed = mine.filter((a) => a.completed);
+  const submitted = mine.filter((a) => a.submission_url);
+  const reach = approved.reduce((s, a) => s + (creators[a.creator_id]?.follower_count ?? 0), 0);
+  const totals: [string, string][] = [
+    ["合作 Foodie 人數", `${new Set(approved.map((a) => a.creator_id)).size} 位`],
+    ["預估總觸及粉絲", reach.toLocaleString()],
+    ["已交付成果", `${submitted.length} 篇`],
+    ["已完成合作", `${completed.length} 件`],
+  ];
+
+  return (
+    <div>
+      <h1 className="mb-1 text-2xl font-bold">合作成效</h1>
+      <p className="mb-6 text-sm text-muted-foreground">追蹤每個案件的申請、核准與 Foodie 交付成果。</p>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {totals.map(([k, v]) => (
+          <Card key={k}>
+            <CardHeader className="pb-2">
+              <p className="text-xs text-muted-foreground">{k}</p>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold">{v}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="mt-8 space-y-4">
+        {campaigns.length === 0 && (
+          <p className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">尚無案件成效資料。</p>
+        )}
+        {campaigns.map((c) => {
+          const apps = mine.filter((a) => a.campaign_id === c.id);
+          const ok = apps.filter((a) => a.status === "approved");
+          const done = apps.filter((a) => a.completed);
+          const cReach = ok.reduce((s, a) => s + (creators[a.creator_id]?.follower_count ?? 0), 0);
+          return (
+            <Card key={c.id}>
+              <CardHeader>
+                <CardTitle className="text-base">{c.title}</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  申請 {apps.length}・核准 {ok.length}／名額 {c.slots}・完成 {done.length}・預估觸及{" "}
+                  {cReach.toLocaleString()}
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {ok.length === 0 && <p className="text-xs text-muted-foreground">尚無核准的合作。</p>}
+                {ok.map((a) => {
+                  const p = creators[a.creator_id];
+                  return (
+                    <div
+                      key={a.id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-3 text-sm"
+                    >
+                      <span>
+                        {p?.display_name ?? "Foodie"}{" "}
+                        <span className="text-xs text-muted-foreground">
+                          {p?.instagram_handle ?? ""}・粉絲 {(p?.follower_count ?? 0).toLocaleString()}
+                        </span>
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {a.submission_url ? (
+                          <a
+                            href={a.submission_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs font-medium text-primary underline"
+                          >
+                            查看成果
+                          </a>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">尚未交付</span>
+                        )}
+                        <Badge variant={a.completed ? "default" : "secondary"}>{a.completed ? "已完成" : "進行中"}</Badge>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CampaignDialog({
   open,
   onOpenChange,
-  onCreated,
+  onSaved,
   userId,
+  campaign,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onCreated: () => void;
+  onSaved: () => void;
   userId: string;
+  campaign: Campaign | null;
 }) {
   const [form, setForm] = useState({
-    title: "",
-    restaurant_name: "",
-    description: "",
-    region: REGIONS[0]!,
-    min_followers: 1000,
-    collab_type: COLLAB_TYPES[0]!,
-    reward: "",
-    slots: 3,
-    deadline: "",
-    status: "published" as "published" | "draft",
+    title: campaign?.title ?? "",
+    restaurant_name: campaign?.restaurant_name ?? "",
+    description: campaign?.description ?? "",
+    region: campaign?.region ?? REGIONS[0]!,
+    min_followers: campaign?.min_followers ?? 1000,
+    collab_type: campaign?.collab_type ?? COLLAB_TYPES[0]!,
+    reward: campaign?.reward ?? "",
+    slots: campaign?.slots ?? 3,
+    deadline: campaign?.deadline ?? "",
   });
+  const [photos, setPhotos] = useState<string[]>(campaign?.photos ?? []);
+  const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const uploadPhotos = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    const urls: string[] = [];
+    for (const file of Array.from(files)) {
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from("campaign-photos").upload(path, file);
+      if (error) {
+        toast.error(`照片上傳失敗：${error.message}`);
+        continue;
+      }
+      const { data } = await supabase.storage.from("campaign-photos").createSignedUrl(path, 60 * 60 * 24 * 365 * 5);
+      if (data?.signedUrl) urls.push(data.signedUrl);
+    }
+    setPhotos((prev) => [...prev, ...urls]);
+    setUploading(false);
+  };
+
+  const save = async (status: "published" | "draft" | "closed") => {
+    if (!form.title.trim()) {
+      toast.error("請填寫案件標題");
+      return;
+    }
+    if (!form.description.trim()) {
+      toast.error("合作內容為必填，請說明合作需求");
+      return;
+    }
     setBusy(true);
-    const { error } = await supabase.from("campaigns").insert({
-      merchant_id: userId,
+    const payload = {
       title: form.title,
       restaurant_name: form.restaurant_name || null,
-      description: form.description || null,
+      description: form.description,
       region: form.region,
       min_followers: Number(form.min_followers),
       collab_type: form.collab_type,
       reward: form.reward,
       slots: Number(form.slots),
       deadline: form.deadline || null,
-      status: form.status,
-    });
+      photos,
+      status,
+    };
+    const { error } = campaign
+      ? await supabase.from("campaigns").update(payload).eq("id", campaign.id)
+      : await supabase.from("campaigns").insert({ ...payload, merchant_id: userId });
     setBusy(false);
     if (error) {
       toast.error(error.message);
       return;
     }
-    toast.success("案件已上架");
+    toast.success(campaign ? "案件已更新" : status === "draft" ? "草稿已儲存" : "案件已上架");
     onOpenChange(false);
-    onCreated();
+    onSaved();
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>上架 Foodie 媒合案件</DialogTitle>
-          <DialogDescription>填寫案件資訊，上架後 Foodie 即可在首頁看到並申請。</DialogDescription>
+          <DialogTitle>{campaign ? "編輯媒合案件" : "上架 Foodie 媒合案件"}</DialogTitle>
+          <DialogDescription>
+            {campaign ? "上架後仍可隨時修改案件內容與照片。" : "填寫案件資訊，上架後 Foodie 即可在首頁看到並申請。"}
+          </DialogDescription>
         </DialogHeader>
-        <form className="space-y-4" onSubmit={submit}>
+        <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
           <div className="space-y-1.5">
             <Label>案件標題</Label>
             <Input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
           </div>
           <div className="space-y-1.5">
             <Label>餐廳名稱</Label>
-            <Input value={form.restaurant_name} onChange={(e) => setForm({ ...form, restaurant_name: e.target.value })} />
+            <Input
+              value={form.restaurant_name}
+              onChange={(e) => setForm({ ...form, restaurant_name: e.target.value })}
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -524,26 +659,72 @@ function NewCampaignDialog({
             <Input type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
           </div>
           <div className="space-y-1.5">
-            <Label>案件說明</Label>
+            <Label>
+              合作內容 <span className="text-destructive">*</span>
+            </Label>
             <Textarea
+              required
               rows={4}
               placeholder="說明合作內容、拍攝需求、到店時段等"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
           </div>
+
+          <div className="space-y-2">
+            <Label>案件照片</Label>
+            <div className="flex flex-wrap gap-2">
+              {photos.map((p) => (
+                <div key={p} className="relative">
+                  <img src={p} alt="案件照片" className="h-20 w-24 rounded-md object-cover" />
+                  <button
+                    type="button"
+                    aria-label="移除照片"
+                    onClick={() => setPhotos((prev) => prev.filter((x) => x !== p))}
+                    className="absolute -right-1.5 -top-1.5 rounded-full bg-destructive p-0.5 text-destructive-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              <label className="flex h-20 w-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed border-input text-xs text-muted-foreground hover:bg-accent">
+                <ImagePlus className="h-4 w-4" />
+                {uploading ? "上傳中…" : "新增照片"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    void uploadPhotos(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+            <p className="text-xs text-muted-foreground">可上傳多張餐點或店內照片，Foodie 會在案件卡片看到。</p>
+          </div>
+
           <DialogFooter>
-            <Button
-              type="submit"
-              variant="outline"
-              disabled={busy}
-              onClick={() => setForm((f) => ({ ...f, status: "draft" }))}
-            >
-              儲存草稿
-            </Button>
-            <Button type="submit" disabled={busy} onClick={() => setForm((f) => ({ ...f, status: "published" }))}>
-              上架案件
-            </Button>
+            {campaign ? (
+              <>
+                <Button type="button" variant="outline" disabled={busy || uploading} onClick={() => void save("closed")}>
+                  下架案件
+                </Button>
+                <Button type="button" disabled={busy || uploading} onClick={() => void save(campaign.status === "closed" ? "published" : campaign.status)}>
+                  儲存變更
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button type="button" variant="outline" disabled={busy || uploading} onClick={() => void save("draft")}>
+                  儲存草稿
+                </Button>
+                <Button type="button" disabled={busy || uploading} onClick={() => void save("published")}>
+                  上架案件
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>
