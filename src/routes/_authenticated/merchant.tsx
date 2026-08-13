@@ -90,6 +90,7 @@ function MerchantBackoffice() {
   const qc = useQueryClient();
   const [section, setSection] = useState<MenuKey>("foodie");
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Campaign | null>(null);
 
   const { data: campaigns = [] } = useQuery({
     queryKey: ["merchant-campaigns", user?.id],
@@ -234,9 +235,21 @@ function MerchantBackoffice() {
                     <CardHeader>
                       <div className="flex items-center justify-between gap-2">
                         <CardTitle className="text-base">{c.title}</CardTitle>
-                        <Badge variant={c.status === "published" ? "default" : "secondary"}>
-                          {c.status === "published" ? "上架中" : c.status === "draft" ? "草稿" : "已結束"}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={c.status === "published" ? "default" : "secondary"}>
+                            {c.status === "published" ? "上架中" : c.status === "draft" ? "草稿" : "已結束"}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditing(c);
+                              setOpen(true);
+                            }}
+                          >
+                            <Pencil className="mr-1 h-3.5 w-3.5" /> 編輯
+                          </Button>
+                        </div>
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {c.region}・{c.collab_type}・粉絲門檻 {c.min_followers.toLocaleString()}・名額 {c.slots}
@@ -244,6 +257,19 @@ function MerchantBackoffice() {
                       </p>
                     </CardHeader>
                     <CardContent className="space-y-3">
+                      {c.photos?.length > 0 && (
+                        <div className="flex gap-2 overflow-x-auto">
+                          {c.photos.map((p) => (
+                            <img
+                              key={p}
+                              src={p}
+                              alt={`${c.title} 案件照片`}
+                              loading="lazy"
+                              className="h-20 w-28 shrink-0 rounded-md object-cover"
+                            />
+                          ))}
+                        </div>
+                      )}
                       <p className="text-sm">獎勵：{c.reward}</p>
                       <div className="space-y-2">
                         <p className="text-xs font-semibold text-muted-foreground">收到的申請（{apps.length}）</p>
