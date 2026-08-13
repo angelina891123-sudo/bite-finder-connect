@@ -217,7 +217,12 @@ function MerchantBackoffice() {
                   上架中案件 {active} 件・待審申請 {pending} 件
                 </p>
               </div>
-              <Button onClick={() => setOpen(true)}>
+              <Button
+                onClick={() => {
+                  setEditing(null);
+                  setOpen(true);
+                }}
+              >
                 <Plus className="mr-2 h-4 w-4" /> 上架媒合案件
               </Button>
             </div>
@@ -318,15 +323,22 @@ function MerchantBackoffice() {
               })}
             </div>
           </>
+        ) : section === "performance" ? (
+          <PerformanceSection campaigns={campaigns} applications={applications} creators={creators} />
         ) : (
           <PlaceholderSection section={section} />
         )}
       </main>
 
-      <NewCampaignDialog
+      <CampaignDialog
+        key={editing?.id ?? "new"}
         open={open}
-        onOpenChange={setOpen}
-        onCreated={() => void qc.invalidateQueries({ queryKey: ["merchant-campaigns", user?.id] })}
+        campaign={editing}
+        onOpenChange={(v) => {
+          setOpen(v);
+          if (!v) setEditing(null);
+        }}
+        onSaved={() => void qc.invalidateQueries({ queryKey: ["merchant-campaigns", user?.id] })}
         userId={user?.id ?? ""}
       />
     </div>
