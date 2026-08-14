@@ -2,12 +2,20 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CalendarDays, MapPin, Users, Gift, Search, AlertTriangle } from "lucide-react";
+import { CalendarDays, MapPin, Users, Gift, Search, AlertTriangle, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/lib/auth";
-import { APPLIED_LABEL, FOOD_TYPES, isExpired, todayISO } from "@/lib/campaign";
+import { useAuth, REGIONS, COLLAB_TYPES } from "@/lib/auth";
+import {
+  APPLIED_LABEL,
+  FOOD_TYPES,
+  FOLLOWER_TIERS,
+  isExpired,
+  matchesTier,
+  todayISO,
+} from "@/lib/campaign";
 import { SiteHeader } from "@/components/SiteHeader";
 import { CampaignDetailDialog } from "@/components/CampaignDetailDialog";
+import { TagGroup } from "@/components/form-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -52,12 +60,30 @@ type Campaign = {
   photos: string[];
 };
 
+/** 前台篩選：先選篩選項目，再於該項目下複選子項。 */
+const FILTER_GROUPS = [
+  { key: "region", label: "地區", options: REGIONS },
+  { key: "food", label: "餐廳類型", options: FOOD_TYPES },
+  { key: "collab", label: "合作方式", options: [...COLLAB_TYPES] },
+  { key: "followers", label: "粉絲數門檻", options: FOLLOWER_TIERS.map((t) => t.label) },
+] as const;
+
+type FilterKey = (typeof FILTER_GROUPS)[number]["key"];
+
+const EMPTY_FILTERS: Record<FilterKey, string[]> = {
+  region: [],
+  food: [],
+  collab: [],
+  followers: [],
+};
+
 function Index() {
   const { user, isCreator, loading } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [keyword, setKeyword] = useState("");
-  const [foodType, setFoodType] = useState("全部");
+  const [openGroup, setOpenGroup] = useState<FilterKey | null>(null);
+  const [filters, setFilters] = useState<Record<FilterKey, string[]>>(EMPTY_FILTERS);
   const [target, setTarget] = useState<Campaign | null>(null);
   const [detail, setDetail] = useState<Campaign | null>(null);
   const [message, setMessage] = useState("");
@@ -120,10 +146,26 @@ function Index() {
   const belowThresholdFor = (c: Campaign) =>
     myFollowers === undefined ? null : (myFollowers ?? 0) < c.min_followers;
 
+  const toggleFilter = (key: FilterKey, value: string) =>
+    setFilters((prev) => ({
+      ...prev,
+      [key]: prev[key].includes(value)
+        ? prev[key].filter((v) => v !== value)
+        : [...prev[key], value],
+    }));
+
+  const activeCount = Object.values(filters).reduce((n, v) => n + v.length, 0);
+
+  // 各篩選群組之間為 AND，同群組內的複選為 OR。
   const filtered = campaigns
     .filter(
       (c) =>
-        (foodType === "全部" || c.food_type === foodType) &&
+        (filters.region.length === 0 || filters.region.includes(c.region)) &&
+        (filters.food.length === 0 ||
+          (!!c.food_type && filters.food.includes(c.food_type))) &&
+        (filters.collab.length === 0 || filters.collab.includes(c.collab_type)) &&
+        (filters.followers.length === 0 ||
+          filters.followers.some((t) => matchesTier(t, c.min_followers))) &&
         (keyword.trim() === "" ||
           `${c.title}${c.restaurant_name ?? ""}${c.collab_type}`.toLowerCase().includes(keyword.toLowerCase())),
     )
@@ -207,28 +249,70 @@ function Index() {
       <main id="campaigns" className="mx-auto max-w-7xl px-4 py-12">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-2xl font-bold">最新合作案件</h2>
-          <div className="flex gap-2">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="pl-9"
-                placeholder="搜尋餐廳或案件"
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
+          <div className="relative w-full sm:w-72">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="搜尋餐廳或案件"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* 先選篩選項目，再於下方複選子項 */}
+        <div className="mb-6 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {FILTER_GROUPS.map((g) => {
+              const count = filters[g.key].length;
+              const open = openGroup === g.key;
+              return (
+                <button
+                  key={g.key}
+                  type="button"
+                  onClick={() => setOpenGroup(open ? null : g.key)}
+                  className={`flex items-center gap-1.5 rounded-full border px-4 py-2 text-[13px] font-medium transition-colors ${
+                    open || count > 0
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background hover:bg-accent"
+                  }`}
+                >
+                  {g.label}
+                  {count > 0 && (
+                    <span className="rounded-full bg-primary-foreground px-1.5 text-[11px] font-bold text-primary">
+                      {count}
+                    </span>
+                  )}
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+                </button>
+              );
+            })}
+            {activeCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilters(EMPTY_FILTERS);
+                  setOpenGroup(null);
+                }}
+                className="text-sm text-muted-foreground underline hover:text-primary"
+              >
+                清除全部（{activeCount}）
+              </button>
+            )}
+          </div>
+
+          {openGroup && (
+            <div className="rounded-xl border border-border bg-card p-4">
+              <p className="mb-2 text-xs text-muted-foreground">
+                {FILTER_GROUPS.find((g) => g.key === openGroup)!.label}・可複選
+              </p>
+              <TagGroup
+                options={[...FILTER_GROUPS.find((g) => g.key === openGroup)!.options]}
+                selected={filters[openGroup]}
+                onToggle={(v) => toggleFilter(openGroup, v)}
               />
             </div>
-            <select
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-              value={foodType}
-              onChange={(e) => setFoodType(e.target.value)}
-            >
-              {["全部", ...FOOD_TYPES].map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
+          )}
         </div>
 
         {isLoading ? (

@@ -28,6 +28,23 @@ export const FOOD_TYPES = [
   "其他",
 ];
 
+/**
+ * 粉絲數門檻級距。資料庫的 campaigns.min_followers 是整數，
+ * 沒有分級欄位，因此在前端定義級距供篩選使用。
+ */
+export const FOLLOWER_TIERS = [
+  { label: "1,000 以下", min: 0, max: 999 },
+  { label: "1,000–4,999", min: 1000, max: 4999 },
+  { label: "5,000–9,999", min: 5000, max: 9999 },
+  { label: "10,000–49,999", min: 10000, max: 49999 },
+  { label: "50,000 以上", min: 50000, max: Infinity },
+];
+
+export function matchesTier(label: string, minFollowers: number) {
+  const tier = FOLLOWER_TIERS.find((t) => t.label === label);
+  return !!tier && minFollowers >= tier.min && minFollowers <= tier.max;
+}
+
 export const APPLIED_LABEL: Record<string, string> = {
   pending: "審核中",
   approved: "已核准",
