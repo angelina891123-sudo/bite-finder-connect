@@ -15,6 +15,7 @@ import {
   X,
   Lock,
   Check,
+  Crown,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, REGIONS, COLLAB_TYPES } from "@/lib/auth";
@@ -108,15 +109,6 @@ function MerchantBackoffice() {
   const subscriptionStatus = profile?.foodie_subscription_status ?? "inactive";
   const hasFoodiePlan = subscriptionStatus === "active";
   const storeName = profile?.store_name?.trim() || "我的店家";
-  const planName = FOODIE_PLANS.find((p) => p.id === profile?.foodie_plan)?.name;
-  const planLabel =
-    subscriptionStatus === "active"
-      ? planName
-        ? `${planName} 方案`
-        : "已開通方案"
-      : subscriptionStatus === "expired"
-        ? "方案已到期"
-        : "尚未開通方案";
 
   const activateFoodiePlan = async () => {
     if (!user || !checkoutPlan) return;
@@ -278,9 +270,12 @@ function MerchantBackoffice() {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold">{storeName}</h1>
-                  <p className="text-sm text-muted-foreground">
-                    {planLabel}・上架中案件 {active} 件・待審申請 {pending} 件
-                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <FoodiePlanBadge plan={profile?.foodie_plan ?? null} status={subscriptionStatus} />
+                    <p className="text-sm text-muted-foreground">
+                      上架中案件 {active} 件・待審申請 {pending} 件
+                    </p>
+                  </div>
                 </div>
               </div>
               {hasFoodiePlan ? (
@@ -483,6 +478,36 @@ const FOODIE_PLANS: FoodiePlan[] = [
     cta: "聯繫專人",
   },
 ];
+
+const FOODIE_PLAN_BADGES: Record<FoodiePlan["id"], { className: string; crown?: boolean }> = {
+  basic: { className: "border-transparent bg-muted text-foreground" },
+  pro: { className: "border-primary bg-transparent text-primary" },
+  enterprise: { className: "border-transparent bg-foreground text-background", crown: true },
+};
+
+function FoodiePlanBadge({
+  plan,
+  status,
+}: {
+  plan: FoodiePlan["id"] | null;
+  status: "inactive" | "active" | "expired";
+}) {
+  const style = status === "active" && plan ? FOODIE_PLAN_BADGES[plan] : null;
+  if (!style) {
+    // Not subscribed, expired, or subscribed before foodie_plan existed.
+    return (
+      <Badge variant="outline" className="border-transparent bg-muted text-muted-foreground">
+        {status === "active" ? "已開通方案" : status === "expired" ? "方案已到期" : "尚未開通方案"}
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className={style.className}>
+      {style.crown && <Crown className="mr-1 h-3 w-3" />}
+      {FOODIE_PLANS.find((p) => p.id === plan)?.name} 方案
+    </Badge>
+  );
+}
 
 function FoodiePlansPage({
   onBack,
