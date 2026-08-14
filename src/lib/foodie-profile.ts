@@ -75,37 +75,14 @@ export function toFoodieRow(userId: string, f: FoodieForm) {
   };
 }
 
-/** 由 20260814090000_foodie_extra_socials.sql 新增的欄位。 */
-const EXTRA_SOCIAL_COLUMNS = [
-  "tiktok_handle",
-  "tiktok_followers",
-  "other_social_handle",
-  "other_social_followers",
-] as const;
-
 /**
  * 寫入 foodie_profiles，並把商家後台會讀到的欄位同步回 profiles。
  * profiles.follower_count 對應 IG 粉絲數（商家後台顯示於 IG 帳號旁）。
  */
 export async function saveFoodieProfile(userId: string, f: FoodieForm) {
-  const row = toFoodieRow(userId, f);
-  let { error } = await supabase.from("foodie_profiles").upsert(row, { onConflict: "user_id" });
-
-  // 上面的 migration 尚未套用時，資料庫沒有這幾個欄位，整筆寫入會失敗。
-  // 退回不含新欄位的版本重試一次，確保註冊與存檔不會整個壞掉。
-  // migration 套用後這段不會被觸發，屆時可移除。
-  if (error && EXTRA_SOCIAL_COLUMNS.some((c) => error!.message.includes(c))) {
-    const {
-      tiktok_handle,
-      tiktok_followers,
-      other_social_handle,
-      other_social_followers,
-      ...fallback
-    } = row;
-    ({ error } = await supabase
-      .from("foodie_profiles")
-      .upsert(fallback, { onConflict: "user_id" }));
-  }
+  const { error } = await supabase
+    .from("foodie_profiles")
+    .upsert(toFoodieRow(userId, f), { onConflict: "user_id" });
   if (error) return error;
 
   const { error: profileError } = await supabase

@@ -46,6 +46,7 @@ END; $$;
 
 REVOKE ALL ON FUNCTION public.handle_application_visit() FROM PUBLIC, anon, authenticated;
 
+DROP TRIGGER IF EXISTS trg_applications_visit ON public.applications;
 CREATE TRIGGER trg_applications_visit
 BEFORE UPDATE ON public.applications
 FOR EACH ROW EXECUTE FUNCTION public.handle_application_visit();
