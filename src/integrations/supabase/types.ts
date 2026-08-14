@@ -74,6 +74,7 @@ export type Database = {
           id: string
           merchant_id: string
           min_followers: number
+          photos: string[]
           region: string
           restaurant_name: string | null
           reward: string
@@ -91,6 +92,7 @@ export type Database = {
           id?: string
           merchant_id: string
           min_followers?: number
+          photos?: string[]
           region: string
           restaurant_name?: string | null
           reward: string
@@ -108,6 +110,7 @@ export type Database = {
           id?: string
           merchant_id?: string
           min_followers?: number
+          photos?: string[]
           region?: string
           restaurant_name?: string | null
           reward?: string
@@ -211,6 +214,7 @@ export type Database = {
           contact_name: string | null
           created_at: string
           email: string | null
+          foodie_subscription_status: Database["public"]["Enums"]["foodie_subscription_status"]
           id: string
           phone: string | null
           region: string | null
@@ -226,6 +230,7 @@ export type Database = {
           contact_name?: string | null
           created_at?: string
           email?: string | null
+          foodie_subscription_status?: Database["public"]["Enums"]["foodie_subscription_status"]
           id?: string
           phone?: string | null
           region?: string | null
@@ -241,6 +246,7 @@ export type Database = {
           contact_name?: string | null
           created_at?: string
           email?: string | null
+          foodie_subscription_status?: Database["public"]["Enums"]["foodie_subscription_status"]
           id?: string
           phone?: string | null
           region?: string | null
@@ -330,6 +336,7 @@ export type Database = {
       app_role: "admin" | "merchant" | "creator"
       application_status: "pending" | "approved" | "rejected"
       campaign_status: "draft" | "published" | "closed"
+      foodie_subscription_status: "inactive" | "active" | "expired"
       verification_status: "pending" | "approved" | "rejected"
     }
     CompositeTypes: {
@@ -461,6 +468,7 @@ export const Constants = {
       app_role: ["admin", "merchant", "creator"],
       application_status: ["pending", "approved", "rejected"],
       campaign_status: ["draft", "published", "closed"],
+      foodie_subscription_status: ["inactive", "active", "expired"],
       verification_status: ["pending", "approved", "rejected"],
     },
   },

@@ -1,5 +1,4 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -14,16 +13,18 @@ import {
   LogOut,
   ImagePlus,
   X,
+  Lock,
+  Check,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, REGIONS, COLLAB_TYPES } from "@/lib/auth";
-import { getCampaignPhotosMap, uploadCampaignPhoto } from "@/lib/campaign-photos";
+import { uploadCampaignPhotos } from "@/lib/campaign-photos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -59,12 +60,15 @@ type MenuKey = (typeof MENU)[number]["key"];
 type Campaign = {
   id: string;
   title: string;
+  description: string | null;
+  restaurant_name: string | null;
   region: string;
   collab_type: string;
   reward: string;
   slots: number;
   min_followers: number;
   deadline: string | null;
+  photos: string[];
   status: "draft" | "published" | "closed";
   created_at: string;
 };
@@ -84,6 +88,34 @@ function MerchantBackoffice() {
   const qc = useQueryClient();
   const [section, setSection] = useState<MenuKey>("foodie");
   const [open, setOpen] = useState(false);
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+  const [showPlans, setShowPlans] = useState(false);
+  const [checkoutPlan, setCheckoutPlan] = useState<FoodiePlan | null>(null);
+
+  const { data: subscriptionStatus = "inactive" } = useQuery({
+    queryKey: ["foodie-subscription-status", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("merchant_profiles")
+        .select("foodie_subscription_status")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.foodie_subscription_status ?? "inactive";
+    },
+  });
+  const hasFoodiePlan = subscriptionStatus === "active";
+
+  const activateFoodiePlan = async () => {
+    if (!user) return;
+    const { error } = await supabase
+      .from("merchant_profiles")
+      .update({ foodie_subscription_status: "active" })
+      .eq("user_id", user.id);
+    if (error) throw error;
+    void qc.invalidateQueries({ queryKey: ["foodie-subscription-status", user.id] });
+  };
 
   const { data: campaigns = [] } = useQuery({
     queryKey: ["merchant-campaigns", user?.id],
@@ -97,12 +129,6 @@ function MerchantBackoffice() {
       if (error) throw error;
       return (data ?? []) as Campaign[];
     },
-  });
-
-  const getPhotosMap = useServerFn(getCampaignPhotosMap);
-  const { data: photosMap = {} } = useQuery({
-    queryKey: ["local-campaign-photos"],
-    queryFn: () => getPhotosMap(),
   });
 
   const { data: applications = [] } = useQuery({
@@ -177,7 +203,11 @@ function MerchantBackoffice() {
           {MENU.map((m) => (
             <button
               key={m.key}
-              onClick={() => setSection(m.key)}
+              onClick={() => {
+                setSection(m.key);
+                setShowPlans(false);
+                setCheckoutPlan(null);
+              }}
               className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                 section === m.key ? "bg-primary text-primary-foreground" : "text-foreground/80 hover:bg-accent"
               }`}
@@ -197,7 +227,11 @@ function MerchantBackoffice() {
           {MENU.map((m) => (
             <button
               key={m.key}
-              onClick={() => setSection(m.key)}
+              onClick={() => {
+                setSection(m.key);
+                setShowPlans(false);
+                setCheckoutPlan(null);
+              }}
               className={`rounded-full border px-3 py-1 text-xs ${
                 section === m.key ? "border-primary bg-primary text-primary-foreground" : "border-border"
               }`}
@@ -207,7 +241,24 @@ function MerchantBackoffice() {
           ))}
         </div>
 
-        {section === "foodie" ? (
+        {checkoutPlan ? (
+          <FoodieCheckoutPage
+            plan={checkoutPlan}
+            onBack={() => setCheckoutPlan(null)}
+            onSuccess={activateFoodiePlan}
+            onCreateCampaign={() => {
+              setCheckoutPlan(null);
+              setShowPlans(false);
+              setOpen(true);
+            }}
+            onBackToManage={() => {
+              setCheckoutPlan(null);
+              setShowPlans(false);
+            }}
+          />
+        ) : showPlans ? (
+          <FoodiePlansPage onBack={() => setShowPlans(false)} onSelectPlan={setCheckoutPlan} />
+        ) : section === "foodie" ? (
           <>
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -216,28 +267,48 @@ function MerchantBackoffice() {
                   上架中案件 {active} 件・待審申請 {pending} 件
                 </p>
               </div>
-              <Button onClick={() => setOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" /> 上架媒合案件
-              </Button>
+              {hasFoodiePlan ? (
+                <Button onClick={() => setOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" /> 上架媒合案件
+                </Button>
+              ) : (
+                <Button disabled>
+                  <Lock className="mr-2 h-4 w-4" /> 上架媒合案件
+                </Button>
+              )}
             </div>
 
+            {!hasFoodiePlan ? (
+              <FoodiePlanUpsellCard onViewPlans={() => setShowPlans(true)} />
+            ) : (
             <div className="grid gap-4 lg:grid-cols-2">
               {campaigns.length === 0 && (
-                <p className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-                  尚未上架任何案件，點擊「上架媒合案件」開始。
-                </p>
+                <div className="rounded-lg border border-dashed p-10 text-center lg:col-span-2">
+                  <p className="font-semibold">尚未上架任何案件</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    建立你的第一個 Foodie 合作案件，開始招募適合的創作者。
+                  </p>
+                  <Button className="mt-4" onClick={() => setOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" /> 上架媒合案件
+                  </Button>
+                </div>
               )}
               {campaigns.map((c) => {
                 const apps = applications.filter((a) => a.campaign_id === c.id);
-                const photos = photosMap[c.id] ?? [];
+                const photos = c.photos ?? [];
                 return (
                   <Card key={c.id}>
                     <CardHeader>
                       <div className="flex items-center justify-between gap-2">
                         <CardTitle className="text-base">{c.title}</CardTitle>
-                        <Badge variant={c.status === "published" ? "default" : "secondary"}>
-                          {c.status === "published" ? "上架中" : c.status === "draft" ? "草稿" : "已結束"}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={c.status === "published" ? "default" : "secondary"}>
+                            {c.status === "published" ? "上架中" : c.status === "draft" ? "草稿" : "已結束"}
+                          </Badge>
+                          <Button size="sm" variant="outline" onClick={() => setEditingCampaign(c)}>
+                            編輯
+                          </Button>
+                        </div>
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {c.region}・{c.collab_type}・粉絲門檻 {c.min_followers.toLocaleString()}・名額 {c.slots}
@@ -304,21 +375,342 @@ function MerchantBackoffice() {
                 );
               })}
             </div>
+            )}
           </>
         ) : (
           <PlaceholderSection section={section} />
         )}
       </main>
 
-      <NewCampaignDialog
-        open={open}
-        onOpenChange={setOpen}
-        onCreated={() => {
+      <CampaignFormDialog
+        open={open || editingCampaign !== null}
+        onOpenChange={(v) => {
+          if (!v) {
+            setOpen(false);
+            setEditingCampaign(null);
+          }
+        }}
+        onSaved={() => {
           void qc.invalidateQueries({ queryKey: ["merchant-campaigns", user?.id] });
-          void qc.invalidateQueries({ queryKey: ["local-campaign-photos"] });
         }}
         userId={user?.id ?? ""}
+        campaign={editingCampaign}
       />
+    </div>
+  );
+}
+
+const FOODIE_PLAN_FEATURES = ["發布合作案件", "接收創作者申請", "查看創作者資訊", "管理合作進度"];
+
+function FoodiePlanUpsellCard({ onViewPlans }: { onViewPlans: () => void }) {
+  return (
+    <div className="flex justify-center py-6">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <CardTitle className="text-lg">尚未開通 Foodie 媒合方案</CardTitle>
+          <p className="mt-2 text-sm text-muted-foreground">
+            開通方案後，即可建立合作案件，招募適合的 Foodie／KOL／KOC，為餐廳創造更多社群曝光。
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <ul className="space-y-2 text-sm">
+            {FOODIE_PLAN_FEATURES.map((f) => (
+              <li key={f} className="flex items-center gap-2">
+                <Check className="h-4 w-4 shrink-0 text-primary" />
+                {f}
+              </li>
+            ))}
+          </ul>
+          <Button className="w-full" onClick={onViewPlans}>
+            查看媒合方案
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+type FoodiePlan = {
+  id: string;
+  name: string;
+  tagline: string;
+  price: string;
+  features: string[];
+  cta: string;
+  highlighted?: boolean;
+};
+
+const FOODIE_PLANS: FoodiePlan[] = [
+  {
+    id: "basic",
+    name: "Basic",
+    tagline: "適合首次嘗試 Foodie 合作的店家",
+    price: "NT$ X,XXX",
+    features: ["可建立 5 個媒合案件", "基礎創作者媒合", "查看創作者基本資料", "案件進度管理"],
+    cta: "選擇Basic方案",
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    tagline: "適合希望持續增加社群曝光的店家",
+    price: "NT$ X,XXX",
+    features: ["可建立 15 個媒合案件", "更多創作者媒合", "查看完整創作者資料", "案件進度管理", "合作成效紀錄"],
+    cta: "選擇Pro方案",
+    highlighted: true,
+  },
+  {
+    id: "enterprise",
+    name: "Enterprise",
+    tagline: "適合有大量創作者合作需求的品牌",
+    price: "NT$ X,XXX",
+    features: ["更多案件額度", "大量創作者媒合", "完整創作者資料", "案件進度管理", "合作成效紀錄", "專人協助"],
+    cta: "聯繫專人",
+  },
+];
+
+function FoodiePlansPage({
+  onBack,
+  onSelectPlan,
+}: {
+  onBack: () => void;
+  onSelectPlan: (plan: FoodiePlan) => void;
+}) {
+  return (
+    <div>
+      <button
+        onClick={onBack}
+        className="mb-4 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        ← 返回
+      </button>
+      <div className="mb-10">
+        <h1 className="text-2xl font-bold">選擇適合你的 Foodie 媒合方案</h1>
+        <p className="mt-1 text-sm text-muted-foreground">依照你的行銷需求，選擇適合的方案開始招募創作者</p>
+      </div>
+      <div className="mx-auto grid max-w-4xl gap-6 md:grid-cols-3">
+        {FOODIE_PLANS.map((plan) => (
+          <Card
+            key={plan.id}
+            className={`relative flex flex-col ${plan.highlighted ? "border-primary bg-primary/5" : ""}`}
+          >
+            {plan.highlighted && (
+              <Badge className="absolute -top-3 left-1/2 -translate-x-1/2">推薦</Badge>
+            )}
+            <CardHeader>
+              <CardTitle>{plan.name}</CardTitle>
+              <p className="text-sm text-muted-foreground">{plan.tagline}</p>
+              <p className="mt-3 text-2xl font-bold">{plan.price}</p>
+            </CardHeader>
+            <CardContent className="flex-1 space-y-2">
+              {plan.features.map((f) => (
+                <div key={f} className="flex items-center gap-2 text-sm">
+                  <Check className="h-4 w-4 shrink-0 text-primary" />
+                  {f}
+                </div>
+              ))}
+            </CardContent>
+            <CardFooter>
+              <Button
+                className="w-full"
+                variant={plan.highlighted ? "default" : "outline"}
+                onClick={() =>
+                  plan.id === "enterprise"
+                    ? toast.info("已收到您的需求，專人將盡快與您聯繫")
+                    : onSelectPlan(plan)
+                }
+              >
+                {plan.cta}
+              </Button>
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FoodieCheckoutPage({
+  plan,
+  onBack,
+  onSuccess,
+  onCreateCampaign,
+  onBackToManage,
+}: {
+  plan: FoodiePlan;
+  onBack: () => void;
+  onSuccess: () => Promise<void>;
+  onCreateCampaign: () => void;
+  onBackToManage: () => void;
+}) {
+  const [step, setStep] = useState<"form" | "success">("form");
+  const [contactName, setContactName] = useState("");
+  const [email, setEmail] = useState("");
+  const [payMethod, setPayMethod] = useState<"card" | "transfer">("card");
+  const [cardNumber, setCardNumber] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [cvc, setCvc] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const confirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    // Only the "payment" itself is simulated — the resulting plan activation
+    // below is a real write to merchant_profiles.
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      await onSuccess();
+      setStep("success");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "開通失敗，請稍後再試");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (step === "success") {
+    return (
+      <div className="mx-auto max-w-md py-16 text-center">
+        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground">
+          <Check className="h-7 w-7" />
+        </div>
+        <h1 className="text-2xl font-bold">Foodie 媒合方案已開通！</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          現在可以建立第一個合作案件，開始招募適合你的創作者。
+        </p>
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <Button className="w-full max-w-xs" onClick={onCreateCampaign}>
+            <Plus className="mr-2 h-4 w-4" /> 建立第一個案件
+          </Button>
+          <Button variant="outline" className="w-full max-w-xs" onClick={onBackToManage}>
+            返回案件管理
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={onBack}
+        className="mb-4 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        ← 返回
+      </button>
+      <div className="mb-2 inline-flex items-center gap-2 rounded-md border border-dashed border-primary/40 bg-primary/5 px-3 py-1.5 text-xs text-primary">
+        Demo 模式｜此頁面僅模擬付款流程，不會產生實際扣款
+      </div>
+      <div className="mb-8 mt-3">
+        <h1 className="text-2xl font-bold">完成方案開通</h1>
+        <p className="mt-1 text-sm text-muted-foreground">確認方案與付款資訊，即可開始使用 Foodie 案件媒合</p>
+      </div>
+
+      <form onSubmit={confirm} className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">付款資訊</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>聯絡人姓名</Label>
+              <Input required value={contactName} onChange={(e) => setContactName(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Email</Label>
+              <Input
+                required
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>付款方式</Label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPayMethod("card")}
+                  className={`rounded-full border px-3 py-1 text-xs ${
+                    payMethod === "card" ? "border-primary bg-primary text-primary-foreground" : "border-border"
+                  }`}
+                >
+                  信用卡
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPayMethod("transfer")}
+                  className={`rounded-full border px-3 py-1 text-xs ${
+                    payMethod === "transfer" ? "border-primary bg-primary text-primary-foreground" : "border-border"
+                  }`}
+                >
+                  銀行轉帳
+                </button>
+              </div>
+            </div>
+            {payMethod === "card" ? (
+              <>
+                <div className="space-y-1.5">
+                  <Label>信用卡卡號</Label>
+                  <Input
+                    required
+                    placeholder="4242 4242 4242 4242"
+                    value={cardNumber}
+                    onChange={(e) => setCardNumber(e.target.value)}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>到期日</Label>
+                    <Input required placeholder="MM/YY" value={expiry} onChange={(e) => setExpiry(e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>CVC</Label>
+                    <Input required placeholder="123" value={cvc} onChange={(e) => setCvc(e.target.value)} />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">此頁面僅為 Demo 畫面，卡號等資訊不會被驗證或送出。</p>
+              </>
+            ) : (
+              <p className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
+                選擇銀行轉帳，開通後將顯示匯款資訊（Demo 模式暫不提供）。
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="h-fit">
+          <CardHeader>
+            <CardTitle className="text-base">訂單摘要</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="font-semibold">{plan.name} 方案</p>
+              <p className="text-sm text-muted-foreground">{plan.tagline}</p>
+            </div>
+            <ul className="space-y-1.5 text-sm">
+              {plan.features.map((f) => (
+                <li key={f} className="flex items-center gap-2">
+                  <Check className="h-4 w-4 shrink-0 text-primary" />
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <div className="flex items-center justify-between border-t border-border pt-3 text-sm text-muted-foreground">
+              <span>方案價格</span>
+              <span>{plan.price}</span>
+            </div>
+            <div className="flex items-center justify-between text-base font-bold">
+              <span>合計</span>
+              <span>{plan.price}</span>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? "處理中..." : "確認付款並開通"}
+            </Button>
+          </CardFooter>
+        </Card>
+      </form>
     </div>
   );
 }
@@ -380,33 +772,57 @@ function PlaceholderSection({ section }: { section: MenuKey }) {
 const MAX_PHOTOS = 6;
 const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
 
-function NewCampaignDialog({
+const DEFAULT_FORM = {
+  title: "",
+  restaurant_name: "",
+  description: "",
+  region: REGIONS[0]!,
+  // Numeric fields are held as strings so the input can be cleared while typing;
+  // they're converted back to numbers on submit.
+  min_followers: "1000",
+  collab_type: COLLAB_TYPES[0]!,
+  reward: "",
+  slots: "3",
+  deadline: "",
+  status: "published" as "published" | "draft" | "closed",
+};
+
+function campaignToForm(c: Campaign): typeof DEFAULT_FORM {
+  return {
+    title: c.title,
+    restaurant_name: c.restaurant_name ?? "",
+    description: c.description ?? "",
+    region: c.region,
+    min_followers: String(c.min_followers),
+    collab_type: c.collab_type,
+    reward: c.reward,
+    slots: String(c.slots),
+    deadline: c.deadline ?? "",
+    status: c.status,
+  };
+}
+
+function CampaignFormDialog({
   open,
   onOpenChange,
-  onCreated,
+  onSaved,
   userId,
+  campaign,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onCreated: () => void;
+  onSaved: () => void;
   userId: string;
+  campaign: Campaign | null;
 }) {
-  const [form, setForm] = useState({
-    title: "",
-    restaurant_name: "",
-    description: "",
-    region: REGIONS[0]!,
-    min_followers: 1000,
-    collab_type: COLLAB_TYPES[0]!,
-    reward: "",
-    slots: 3,
-    deadline: "",
-    status: "published" as "published" | "draft",
-  });
+  const isEdit = campaign !== null;
+  const [form, setForm] = useState(DEFAULT_FORM);
+  // Photos already stored in Supabase Storage (edit mode) vs. files picked in this session.
+  const [existingPhotos, setExistingPhotos] = useState<string[]>([]);
   const [photos, setPhotos] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const uploadPhoto = useServerFn(uploadCampaignPhoto);
+  const photoCount = existingPhotos.length + photos.length;
 
   useEffect(() => {
     const urls = photos.map((f) => URL.createObjectURL(f));
@@ -415,10 +831,13 @@ function NewCampaignDialog({
   }, [photos]);
 
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      setForm(campaign ? campaignToForm(campaign) : DEFAULT_FORM);
+      setExistingPhotos(campaign?.photos ?? []);
+    } else {
       setPhotos([]);
     }
-  }, [open]);
+  }, [open, campaign]);
 
   const addPhotos = (files: FileList | null) => {
     if (!files) return;
@@ -433,31 +852,25 @@ function NewCampaignDialog({
       }
       return true;
     });
-    setPhotos((prev) => [...prev, ...incoming].slice(0, MAX_PHOTOS));
+    setPhotos((prev) => [...prev, ...incoming].slice(0, MAX_PHOTOS - existingPhotos.length));
   };
 
   const removePhoto = (index: number) => {
     setPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const uploadPhotos = async (campaignId: string) => {
-    for (const file of photos) {
-      const formData = new FormData();
-      formData.set("file", file);
-      formData.set("campaignId", campaignId);
-      await uploadPhoto({ data: formData });
-    }
+  const removeExistingPhoto = (index: number) => {
+    setExistingPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     try {
-      const campaignId = crypto.randomUUID();
-      await uploadPhotos(campaignId);
-      const { error } = await supabase.from("campaigns").insert({
-        id: campaignId,
-        merchant_id: userId,
+      const campaignId = campaign?.id ?? crypto.randomUUID();
+      const uploaded = await uploadCampaignPhotos(photos, userId, campaignId);
+      const fields = {
+        photos: [...existingPhotos, ...uploaded],
         title: form.title,
         restaurant_name: form.restaurant_name || null,
         description: form.description || null,
@@ -468,11 +881,14 @@ function NewCampaignDialog({
         slots: Number(form.slots),
         deadline: form.deadline || null,
         status: form.status,
-      });
+      };
+      const { error } = isEdit
+        ? await supabase.from("campaigns").update(fields).eq("id", campaignId)
+        : await supabase.from("campaigns").insert({ id: campaignId, merchant_id: userId, ...fields });
       if (error) throw error;
-      toast.success("案件已上架");
+      toast.success(isEdit ? "案件已更新" : "案件已上架");
       onOpenChange(false);
-      onCreated();
+      onSaved();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "上傳失敗，請稍後再試");
     } finally {
@@ -484,8 +900,10 @@ function NewCampaignDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>上架 Foodie 媒合案件</DialogTitle>
-          <DialogDescription>填寫案件資訊，上架後 Foodie 即可在首頁看到並申請。</DialogDescription>
+          <DialogTitle>{isEdit ? "編輯 Foodie 媒合案件" : "上架 Foodie 媒合案件"}</DialogTitle>
+          <DialogDescription>
+            {isEdit ? "案件上架後仍可隨時修改內容。" : "填寫案件資訊，上架後 Foodie 即可在首頁看到並申請。"}
+          </DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={submit}>
           <div className="space-y-1.5">
@@ -524,19 +942,23 @@ function NewCampaignDialog({
             <div className="space-y-1.5">
               <Label>粉絲門檻</Label>
               <Input
+                required
                 type="number"
                 min={0}
+                placeholder="1000"
                 value={form.min_followers}
-                onChange={(e) => setForm({ ...form, min_followers: Number(e.target.value) })}
+                onChange={(e) => setForm({ ...form, min_followers: e.target.value })}
               />
             </div>
             <div className="space-y-1.5">
               <Label>名額</Label>
               <Input
+                required
                 type="number"
                 min={1}
+                placeholder="3"
                 value={form.slots}
-                onChange={(e) => setForm({ ...form, slots: Number(e.target.value) })}
+                onChange={(e) => setForm({ ...form, slots: e.target.value })}
               />
             </div>
           </div>
@@ -556,6 +978,19 @@ function NewCampaignDialog({
           <div className="space-y-1.5">
             <Label>案件照片（最多 {MAX_PHOTOS} 張）</Label>
             <div className="flex flex-wrap gap-2">
+              {existingPhotos.map((src, i) => (
+                <div key={src} className="relative h-20 w-20 shrink-0">
+                  <img src={src} alt="" className="h-full w-full rounded-md border border-border object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeExistingPhoto(i)}
+                    className="absolute -right-1.5 -top-1.5 rounded-full bg-foreground p-0.5 text-background"
+                    aria-label="移除照片"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
               {previews.map((src, i) => (
                 <div key={src} className="relative h-20 w-20 shrink-0">
                   <img src={src} alt="" className="h-full w-full rounded-md border border-border object-cover" />
@@ -569,7 +1004,7 @@ function NewCampaignDialog({
                   </button>
                 </div>
               ))}
-              {photos.length < MAX_PHOTOS && (
+              {photoCount < MAX_PHOTOS && (
                 <label className="flex h-20 w-20 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed border-input text-muted-foreground hover:bg-accent">
                   <ImagePlus className="h-5 w-5" />
                   <span className="text-xs">上傳</span>
@@ -590,6 +1025,7 @@ function NewCampaignDialog({
           <div className="space-y-1.5">
             <Label>案件說明</Label>
             <Textarea
+              required
               rows={4}
               placeholder="說明合作內容、拍攝需求、到店時段等"
               value={form.description}
@@ -597,6 +1033,16 @@ function NewCampaignDialog({
             />
           </div>
           <DialogFooter>
+            {campaign !== null && campaign.status !== "closed" && (
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={busy}
+                onClick={() => setForm((f) => ({ ...f, status: "closed" }))}
+              >
+                取消上架
+              </Button>
+            )}
             <Button
               type="submit"
               variant="outline"
@@ -606,7 +1052,7 @@ function NewCampaignDialog({
               儲存草稿
             </Button>
             <Button type="submit" disabled={busy} onClick={() => setForm((f) => ({ ...f, status: "published" }))}>
-              上架案件
+              {isEdit ? "儲存變更" : "上架案件"}
             </Button>
           </DialogFooter>
         </form>

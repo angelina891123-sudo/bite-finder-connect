@@ -1,12 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CalendarDays, MapPin, Users, Gift, Search, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, REGIONS } from "@/lib/auth";
-import { getCampaignPhotosMap } from "@/lib/campaign-photos";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +46,7 @@ type Campaign = {
   reward: string;
   slots: number;
   deadline: string | null;
+  photos: string[];
 };
 
 function Index() {
@@ -64,18 +63,12 @@ function Index() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("campaigns")
-        .select("id,title,description,restaurant_name,region,min_followers,collab_type,reward,slots,deadline")
+        .select("id,title,description,restaurant_name,region,min_followers,collab_type,reward,slots,deadline,photos")
         .eq("status", "published")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as Campaign[];
     },
-  });
-
-  const getPhotosMap = useServerFn(getCampaignPhotosMap);
-  const { data: photosMap = {} } = useQuery({
-    queryKey: ["local-campaign-photos"],
-    queryFn: () => getPhotosMap(),
   });
 
   const { data: myFollowers = 0 } = useQuery({
@@ -192,7 +185,7 @@ function Index() {
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((c) => {
-              const photos = photosMap[c.id] ?? [];
+              const photos = c.photos ?? [];
               return (
               <Card key={c.id} className="flex flex-col">
                 {photos[0] && (
