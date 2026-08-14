@@ -20,9 +20,22 @@ dist-ssr
 .wrangler/
 .dev.vars
 
-# Local dev-only file storage (see src/routes/_authenticated/merchant.tsx)
+# Secrets — .env holds SUPABASE_SERVICE_ROLE_KEY, which must never be committed.
+# See .env.example for the expected keys.
+.env
+.env.*
+!.env.example
+
+# Leftovers from the old dev-only local photo storage; campaign photos now live
+# in the Supabase "campaign-photos" bucket. Safe to delete these folders.
 /local-data/
 /public/uploads/
+
+# Supabase CLI local state (caches the linked project ref and pooler URL)
+supabase/.temp/
+
+# Local tooling config
+.claude/
 
 # Editor directories and files
 .vscode/*
