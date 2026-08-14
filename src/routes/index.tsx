@@ -1,11 +1,13 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CalendarDays, MapPin, Users, Gift, Search, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, REGIONS } from "@/lib/auth";
+import { APPLIED_LABEL, isExpired, todayISO } from "@/lib/campaign";
 import { SiteHeader } from "@/components/SiteHeader";
+import { CampaignDetailDialog } from "@/components/CampaignDetailDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -52,11 +54,14 @@ type Campaign = {
 function Index() {
   const { user, isCreator, loading } = useAuth();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [keyword, setKeyword] = useState("");
   const [region, setRegion] = useState("全部");
   const [target, setTarget] = useState<Campaign | null>(null);
+  const [detail, setDetail] = useState<Campaign | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const today = todayISO();
 
   const { data: campaigns = [], isLoading, refetch } = useQuery({
     queryKey: ["public-campaigns"],
@@ -71,31 +76,66 @@ function Index() {
     },
   });
 
-  const { data: myFollowers = 0 } = useQuery({
+  // 尚未建立 Foodie 資料時回傳 null，用來區分「沒填過」與「真的是 0」。
+  const { data: myFollowers } = useQuery({
     queryKey: ["my-followers", user?.id],
     enabled: !!user,
     queryFn: async () => {
       const { data } = await supabase
         .from("foodie_profiles")
-        .select("ig_followers,threads_followers,youtube_subscribers")
+        .select("*")
         .eq("user_id", user!.id)
         .maybeSingle();
-      if (!data) return 0;
-      return Math.max(data.ig_followers ?? 0, data.threads_followers ?? 0, data.youtube_subscribers ?? 0);
+      if (!data) return null;
+      return Math.max(
+        data.ig_followers ?? 0,
+        data.threads_followers ?? 0,
+        data.youtube_subscribers ?? 0,
+        data.tiktok_followers ?? 0,
+        data.other_social_followers ?? 0,
+      );
     },
   });
 
-  const belowThreshold = target ? myFollowers < target.min_followers : false;
+  // 已申請過的案件：campaign_id → 申請狀態
+  const { data: appliedMap = {} } = useQuery({
+    queryKey: ["my-applied-campaigns", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("applications")
+        .select("campaign_id,status")
+        .eq("creator_id", user!.id);
+      const map: Record<string, string> = {};
+      for (const a of data ?? []) map[a.campaign_id] = a.status;
+      return map;
+    },
+  });
 
-  const filtered = campaigns.filter(
-    (c) =>
-      (region === "全部" || c.region === region) &&
-      (keyword.trim() === "" ||
-        `${c.title}${c.restaurant_name ?? ""}${c.collab_type}`.toLowerCase().includes(keyword.toLowerCase())),
-  );
+  const noProfile = myFollowers === null;
+  const belowThreshold =
+    target && typeof myFollowers === "number" ? myFollowers < target.min_followers : false;
+
+  const filtered = campaigns
+    .filter(
+      (c) =>
+        (region === "全部" || c.region === region) &&
+        (keyword.trim() === "" ||
+          `${c.title}${c.restaurant_name ?? ""}${c.collab_type}`.toLowerCase().includes(keyword.toLowerCase())),
+    )
+    // 已截止的案件仍然看得到，但排到最後且不能申請。
+    .sort((a, b) => Number(isExpired(a.deadline, today)) - Number(isExpired(b.deadline, today)));
 
   const onApplyClick = (c: Campaign) => {
     if (loading) return;
+    if (isExpired(c.deadline, today)) {
+      toast.error("此案件已過截止日");
+      return;
+    }
+    if (appliedMap[c.id]) {
+      toast.error("你已經申請過這個案件了");
+      return;
+    }
     if (!user) {
       navigate({ to: "/auth", search: { role: "creator", redirect: "/" } });
       return;
@@ -121,6 +161,8 @@ function Index() {
     }
     toast.success("申請已送出，等待商家審核");
     setTarget(null);
+    setDetail(null);
+    void qc.invalidateQueries({ queryKey: ["my-applied-campaigns", user.id] });
     void refetch();
   };
 
@@ -186,8 +228,10 @@ function Index() {
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((c) => {
               const photos = c.photos ?? [];
+              const expired = isExpired(c.deadline, today);
+              const applied = appliedMap[c.id];
               return (
-              <Card key={c.id} className="flex flex-col">
+              <Card key={c.id} className={`flex flex-col ${expired ? "opacity-60" : ""}`}>
                 {photos[0] && (
                   <img
                     src={photos[0]}
@@ -197,9 +241,11 @@ function Index() {
                   />
                 )}
                 <CardHeader>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <MapPin className="h-3.5 w-3.5" /> {c.region}
                     <Badge variant="secondary">{c.collab_type}</Badge>
+                    {expired && <Badge variant="destructive">已截止</Badge>}
+                    {applied && <Badge>已申請・{APPLIED_LABEL[applied] ?? applied}</Badge>}
                   </div>
                   <CardTitle className="text-lg">{c.title}</CardTitle>
                   <p className="text-sm text-muted-foreground">{c.restaurant_name}</p>
@@ -218,9 +264,16 @@ function Index() {
                     </p>
                   )}
                 </CardContent>
-                <CardFooter>
-                  <Button className="w-full" onClick={() => onApplyClick(c)}>
-                    申請合作
+                <CardFooter className="gap-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setDetail(c)}>
+                    查看詳情
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    disabled={expired || !!applied}
+                    onClick={() => onApplyClick(c)}
+                  >
+                    {expired ? "已截止" : applied ? (APPLIED_LABEL[applied] ?? "已申請") : "申請合作"}
                   </Button>
                 </CardFooter>
               </Card>
@@ -234,6 +287,33 @@ function Index() {
         © 肚肚 dudoo・Foodie 媒合專區
       </footer>
 
+      <CampaignDetailDialog
+        campaign={detail}
+        onOpenChange={(o) => !o && setDetail(null)}
+        expired={detail ? isExpired(detail.deadline, today) : false}
+      >
+        <Button variant="outline" onClick={() => setDetail(null)}>
+          關閉
+        </Button>
+        <Button
+          disabled={
+            !detail || isExpired(detail.deadline, today) || !!(detail && appliedMap[detail.id])
+          }
+          onClick={() => {
+            if (!detail) return;
+            const c = detail;
+            setDetail(null);
+            onApplyClick(c);
+          }}
+        >
+          {detail && isExpired(detail.deadline, today)
+            ? "已截止"
+            : detail && appliedMap[detail.id]
+              ? (APPLIED_LABEL[appliedMap[detail.id]!] ?? "已申請")
+              : "申請合作"}
+        </Button>
+      </CampaignDetailDialog>
+
       <Dialog open={target !== null} onOpenChange={(o) => !o && setTarget(null)}>
         <DialogContent>
           <DialogHeader>
@@ -246,14 +326,27 @@ function Index() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
           />
-          {belowThreshold && (
-            <div className="flex gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          {noProfile ? (
+            <div className="flex gap-2 rounded-md border border-primary/40 bg-accent p-3 text-sm">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               <span>
-                此案件粉絲門檻為 {target?.min_followers.toLocaleString()} 人，你目前登錄的粉絲數為{" "}
-                {myFollowers.toLocaleString()} 人，尚未達標。仍可送出申請，但商家可能不予核准。
+                你還沒有填寫社群資料，商家會看到粉絲數為 0。建議先到{" "}
+                <Link to="/my-applications" className="font-medium text-primary underline">
+                  我的申請 → 個人資料管理
+                </Link>{" "}
+                補上粉絲數，再送出申請。
               </span>
             </div>
+          ) : (
+            belowThreshold && (
+              <div className="flex gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  此案件粉絲門檻為 {target?.min_followers.toLocaleString()} 人，你目前登錄的粉絲數為{" "}
+                  {(myFollowers ?? 0).toLocaleString()} 人，尚未達標。仍可送出申請，但商家可能不予核准。
+                </span>
+              </div>
+            )
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setTarget(null)}>

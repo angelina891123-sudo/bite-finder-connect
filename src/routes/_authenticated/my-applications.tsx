@@ -4,11 +4,15 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { isExpired, todayISO } from "@/lib/campaign";
 import { SiteHeader } from "@/components/SiteHeader";
+import { FoodieProfileForm } from "@/components/FoodieProfileForm";
+import { CampaignDetailDialog, type CampaignDetail } from "@/components/CampaignDetailDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -39,13 +43,11 @@ type Row = {
   message: string | null;
   created_at: string;
   submission_url: string | null;
-  campaigns: {
-    title: string;
-    region: string;
-    reward: string;
-    collab_type: string;
-    deadline: string | null;
-  } | null;
+  // 到店核銷欄位，於 20260813180000_visit_verification_code.sql 新增；
+  // migration 套用前為 undefined，UI 會自動隱藏該區塊。
+  visit_code?: string | null;
+  visited?: boolean | null;
+  campaigns: CampaignDetail | null;
 };
 
 function statusOf(r: Row) {
@@ -61,7 +63,9 @@ function MyApplications() {
   const [uploadTarget, setUploadTarget] = useState<Row | null>(null);
   const [url, setUrl] = useState("");
   const [cancelTarget, setCancelTarget] = useState<Row | null>(null);
+  const [detail, setDetail] = useState<CampaignDetail | null>(null);
   const [busy, setBusy] = useState(false);
+  const today = todayISO();
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["my-applications", user?.id],
@@ -70,7 +74,7 @@ function MyApplications() {
       const { data, error } = await supabase
         .from("applications")
         .select(
-          "id,status,completed,message,created_at,submission_url,campaigns(title,region,reward,collab_type,deadline)",
+          "*,campaigns(id,title,description,restaurant_name,region,reward,collab_type,min_followers,slots,deadline,photos)",
         )
         .eq("creator_id", user!.id)
         .order("created_at", { ascending: false });
@@ -89,16 +93,23 @@ function MyApplications() {
       return;
     }
     setBusy(true);
+    const now = new Date().toISOString();
+    // 交付成果連結即視為完成合作；清空連結則退回進行中。
     const { error } = await supabase
       .from("applications")
-      .update({ submission_url: value || null, submitted_at: value ? new Date().toISOString() : null })
+      .update({
+        submission_url: value || null,
+        submitted_at: value ? now : null,
+        completed: !!value,
+        completed_at: value ? now : null,
+      })
       .eq("id", uploadTarget.id);
     setBusy(false);
     if (error) {
       toast.error(error.message);
       return;
     }
-    toast.success("成果連結已更新");
+    toast.success(value ? "成果連結已上傳，案件標記為已完成" : "成果連結已清除");
     setUploadTarget(null);
     void refresh();
   };
@@ -129,8 +140,17 @@ function MyApplications() {
       <SiteHeader />
       <main className="mx-auto max-w-5xl px-4 py-10">
         <h1 className="mb-1 text-2xl font-bold">我的案件管理後台</h1>
-        <p className="mb-6 text-sm text-muted-foreground">查看審核狀態、案件截止日，並上傳貼文／Reels 成果連結。</p>
+        <p className="mb-6 text-sm text-muted-foreground">
+          查看審核狀態、案件截止日，上傳貼文／Reels 成果連結，並維護你的個人資料。
+        </p>
 
+        <Tabs defaultValue="applications">
+          <TabsList className="mb-6">
+            <TabsTrigger value="applications">我的申請</TabsTrigger>
+            <TabsTrigger value="profile">個人資料管理</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="applications">
         <div className="mb-6 grid gap-3 sm:grid-cols-4">
           {[
             { label: "全部申請", value: counts.total },
@@ -167,10 +187,28 @@ function MyApplications() {
                     <p className="text-xs text-muted-foreground">
                       {r.campaigns?.region}・{r.campaigns?.collab_type}・{r.campaigns?.reward}
                       {r.campaigns?.deadline ? `・截止日 ${r.campaigns.deadline}` : "・無截止日"}
+                      {isExpired(r.campaigns?.deadline, today) && "（已截止）"}
                     </p>
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm">
                     {r.message && <p className="text-muted-foreground">{r.message}</p>}
+                    {r.status === "approved" && r.visit_code && (
+                      <div className="rounded-lg border border-primary/30 bg-accent/60 p-3">
+                        {r.visited ? (
+                          <p className="font-medium text-primary">✓ 已完成到店，店家已核銷此代碼</p>
+                        ) : (
+                          <>
+                            <p className="text-xs text-muted-foreground">到店代碼</p>
+                            <p className="font-mono text-2xl font-bold tracking-[0.3em] text-primary">
+                              {r.visit_code}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              到店時請出示這組代碼給店家人員輸入，完成到店確認。
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    )}
                     <p className="text-muted-foreground">
                       成果連結：
                       {r.submission_url ? (
@@ -187,6 +225,14 @@ function MyApplications() {
                       )}
                     </p>
                     <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!r.campaigns}
+                        onClick={() => setDetail(r.campaigns)}
+                      >
+                        查看案件詳情
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"
@@ -213,7 +259,23 @@ function MyApplications() {
             })}
           </div>
         )}
+          </TabsContent>
+
+          <TabsContent value="profile">
+            {user && <FoodieProfileForm userId={user.id} userEmail={user.email ?? null} />}
+          </TabsContent>
+        </Tabs>
       </main>
+
+      <CampaignDetailDialog
+        campaign={detail}
+        onOpenChange={(o) => !o && setDetail(null)}
+        expired={isExpired(detail?.deadline, today)}
+      >
+        <Button variant="outline" onClick={() => setDetail(null)}>
+          關閉
+        </Button>
+      </CampaignDetailDialog>
 
       <Dialog open={uploadTarget !== null} onOpenChange={(o) => !o && setUploadTarget(null)}>
         <DialogContent>
