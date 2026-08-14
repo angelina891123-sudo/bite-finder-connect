@@ -92,29 +92,40 @@ function MerchantBackoffice() {
   const [showPlans, setShowPlans] = useState(false);
   const [checkoutPlan, setCheckoutPlan] = useState<FoodiePlan | null>(null);
 
-  const { data: subscriptionStatus = "inactive" } = useQuery({
-    queryKey: ["foodie-subscription-status", user?.id],
+  const { data: profile } = useQuery({
+    queryKey: ["merchant-profile", user?.id],
     enabled: !!user,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("merchant_profiles")
-        .select("foodie_subscription_status")
+        .select("store_name,foodie_subscription_status,foodie_plan")
         .eq("user_id", user!.id)
         .maybeSingle();
       if (error) throw error;
-      return data?.foodie_subscription_status ?? "inactive";
+      return data;
     },
   });
+  const subscriptionStatus = profile?.foodie_subscription_status ?? "inactive";
   const hasFoodiePlan = subscriptionStatus === "active";
+  const storeName = profile?.store_name?.trim() || "我的店家";
+  const planName = FOODIE_PLANS.find((p) => p.id === profile?.foodie_plan)?.name;
+  const planLabel =
+    subscriptionStatus === "active"
+      ? planName
+        ? `${planName} 方案`
+        : "已開通方案"
+      : subscriptionStatus === "expired"
+        ? "方案已到期"
+        : "尚未開通方案";
 
   const activateFoodiePlan = async () => {
-    if (!user) return;
+    if (!user || !checkoutPlan) return;
     const { error } = await supabase
       .from("merchant_profiles")
-      .update({ foodie_subscription_status: "active" })
+      .update({ foodie_subscription_status: "active", foodie_plan: checkoutPlan.id })
       .eq("user_id", user.id);
     if (error) throw error;
-    void qc.invalidateQueries({ queryKey: ["foodie-subscription-status", user.id] });
+    void qc.invalidateQueries({ queryKey: ["merchant-profile", user.id] });
   };
 
   const { data: campaigns = [] } = useQuery({
@@ -261,11 +272,16 @@ function MerchantBackoffice() {
         ) : section === "foodie" ? (
           <>
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h1 className="text-2xl font-bold">Foodie 案件媒合</h1>
-                <p className="text-sm text-muted-foreground">
-                  上架中案件 {active} 件・待審申請 {pending} 件
-                </p>
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-accent text-lg font-bold text-primary">
+                  {storeName.charAt(0)}
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold">{storeName}</h1>
+                  <p className="text-sm text-muted-foreground">
+                    {planLabel}・上架中案件 {active} 件・待審申請 {pending} 件
+                  </p>
+                </div>
               </div>
               {hasFoodiePlan ? (
                 <Button onClick={() => setOpen(true)}>
@@ -431,7 +447,7 @@ function FoodiePlanUpsellCard({ onViewPlans }: { onViewPlans: () => void }) {
 }
 
 type FoodiePlan = {
-  id: string;
+  id: "basic" | "pro" | "enterprise";
   name: string;
   tagline: string;
   price: string;

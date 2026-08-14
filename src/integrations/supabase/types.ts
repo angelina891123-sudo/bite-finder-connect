@@ -214,6 +214,7 @@ export type Database = {
           contact_name: string | null
           created_at: string
           email: string | null
+          foodie_plan: Database["public"]["Enums"]["foodie_plan"] | null
           foodie_subscription_status: Database["public"]["Enums"]["foodie_subscription_status"]
           id: string
           phone: string | null
@@ -230,6 +231,7 @@ export type Database = {
           contact_name?: string | null
           created_at?: string
           email?: string | null
+          foodie_plan?: Database["public"]["Enums"]["foodie_plan"] | null
           foodie_subscription_status?: Database["public"]["Enums"]["foodie_subscription_status"]
           id?: string
           phone?: string | null
@@ -246,6 +248,7 @@ export type Database = {
           contact_name?: string | null
           created_at?: string
           email?: string | null
+          foodie_plan?: Database["public"]["Enums"]["foodie_plan"] | null
           foodie_subscription_status?: Database["public"]["Enums"]["foodie_subscription_status"]
           id?: string
           phone?: string | null
@@ -336,6 +339,7 @@ export type Database = {
       app_role: "admin" | "merchant" | "creator"
       application_status: "pending" | "approved" | "rejected"
       campaign_status: "draft" | "published" | "closed"
+      foodie_plan: "basic" | "pro" | "enterprise"
       foodie_subscription_status: "inactive" | "active" | "expired"
       verification_status: "pending" | "approved" | "rejected"
     }
@@ -468,6 +472,7 @@ export const Constants = {
       app_role: ["admin", "merchant", "creator"],
       application_status: ["pending", "approved", "rejected"],
       campaign_status: ["draft", "published", "closed"],
+      foodie_plan: ["basic", "pro", "enterprise"],
       foodie_subscription_status: ["inactive", "active", "expired"],
       verification_status: ["pending", "approved", "rejected"],
     },
