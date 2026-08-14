@@ -10,6 +10,24 @@ export function isExpired(deadline: string | null | undefined, today = todayISO(
   return !!deadline && deadline < today;
 }
 
+/** 前台案件篩選用的食物類型；商家上架案件時選擇。 */
+export const FOOD_TYPES = [
+  "台式",
+  "日式",
+  "韓式",
+  "中式",
+  "西式",
+  "義式",
+  "東南亞",
+  "火鍋",
+  "燒烤",
+  "甜點烘焙",
+  "飲料手搖",
+  "早午餐",
+  "素食",
+  "其他",
+];
+
 export const APPLIED_LABEL: Record<string, string> = {
   pending: "審核中",
   approved: "已核准",

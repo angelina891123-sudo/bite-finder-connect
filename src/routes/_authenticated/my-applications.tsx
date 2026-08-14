@@ -47,6 +47,8 @@ type Row = {
   // migration 套用前為 undefined，UI 會自動隱藏該區塊。
   visit_code?: string | null;
   visited?: boolean | null;
+  // 成效截圖，於 20260814140000 migration 新增。
+  result_images?: string[] | null;
   campaigns: CampaignDetail | null;
 };
 
@@ -64,6 +66,8 @@ function MyApplications() {
   const [url, setUrl] = useState("");
   const [cancelTarget, setCancelTarget] = useState<Row | null>(null);
   const [detail, setDetail] = useState<CampaignDetail | null>(null);
+  const [shotTarget, setShotTarget] = useState<Row | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const today = todayISO();
 
@@ -112,6 +116,40 @@ function MyApplications() {
     toast.success(value ? "成果連結已上傳，案件標記為已完成" : "成果連結已清除");
     setUploadTarget(null);
     void refresh();
+  };
+
+  // 成效截圖：私有 bucket，路徑第一層為使用者 id，讀取用長效簽名網址。
+  const uploadShots = async (row: Row, files: FileList | null) => {
+    if (!files || files.length === 0 || !user) return;
+    setUploading(true);
+    const urls: string[] = [];
+    for (const file of Array.from(files)) {
+      const ext = file.name.split(".").pop() ?? "png";
+      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from("performance-shots").upload(path, file);
+      if (error) {
+        toast.error(`截圖上傳失敗：${error.message}`);
+        continue;
+      }
+      const { data } = await supabase.storage
+        .from("performance-shots")
+        .createSignedUrl(path, 60 * 60 * 24 * 365 * 5);
+      if (data?.signedUrl) urls.push(data.signedUrl);
+    }
+    if (urls.length > 0) {
+      const next = [...(row.result_images ?? []), ...urls];
+      const { error } = await supabase
+        .from("applications")
+        .update({ result_images: next })
+        .eq("id", row.id);
+      if (error) toast.error(error.message);
+      else {
+        toast.success(`已上傳 ${urls.length} 張成效截圖`);
+        setShotTarget((t) => (t ? { ...t, result_images: next } : t));
+        void refresh();
+      }
+    }
+    setUploading(false);
   };
 
   const cancelApplication = async () => {
@@ -224,6 +262,37 @@ function MyApplications() {
                         <span className="ml-1">尚未上傳</span>
                       )}
                     </p>
+                    {r.completed && (
+                      <div className="rounded-lg border border-border bg-background p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-xs font-semibold">
+                            成效截圖
+                            <span className="ml-1 font-normal text-muted-foreground">
+                              上傳貼文洞察報告（觸及、互動等）截圖給商家
+                            </span>
+                          </p>
+                          <Button size="sm" variant="outline" onClick={() => setShotTarget(r)}>
+                            {r.result_images?.length ? "管理截圖" : "上傳成效截圖"}
+                          </Button>
+                        </div>
+                        {r.result_images?.length ? (
+                          <div className="mt-2 flex gap-2 overflow-x-auto">
+                            {r.result_images.map((src) => (
+                              <a key={src} href={src} target="_blank" rel="noreferrer">
+                                <img
+                                  src={src}
+                                  alt="成效截圖"
+                                  loading="lazy"
+                                  className="h-20 w-20 shrink-0 rounded-md border border-border object-cover"
+                                />
+                              </a>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-1 text-xs text-muted-foreground">尚未上傳</p>
+                        )}
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-2">
                       <Button
                         size="sm"
@@ -276,6 +345,55 @@ function MyApplications() {
           關閉
         </Button>
       </CampaignDetailDialog>
+
+      <Dialog open={shotTarget !== null} onOpenChange={(o) => !o && setShotTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>上傳成效截圖</DialogTitle>
+            <DialogDescription>
+              上傳「{shotTarget?.campaigns?.title}」的貼文洞察報告截圖，商家可在後台查看。可一次選多張。
+            </DialogDescription>
+          </DialogHeader>
+
+          {shotTarget?.result_images?.length ? (
+            <div className="flex flex-wrap gap-2">
+              {shotTarget.result_images.map((src) => (
+                <a key={src} href={src} target="_blank" rel="noreferrer">
+                  <img
+                    src={src}
+                    alt="成效截圖"
+                    loading="lazy"
+                    className="h-24 w-24 rounded-md border border-border object-cover"
+                  />
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">尚未上傳任何截圖。</p>
+          )}
+
+          <label className="mt-2 flex cursor-pointer items-center justify-center rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground hover:bg-accent">
+            {uploading ? "上傳中…" : "點此選擇圖片檔案"}
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              disabled={uploading}
+              onChange={(e) => {
+                if (shotTarget) void uploadShots(shotTarget, e.target.files);
+                e.target.value = "";
+              }}
+            />
+          </label>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShotTarget(null)}>
+              完成
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={uploadTarget !== null} onOpenChange={(o) => !o && setUploadTarget(null)}>
         <DialogContent>

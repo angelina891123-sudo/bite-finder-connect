@@ -21,6 +21,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, REGIONS, COLLAB_TYPES } from "@/lib/auth";
 import { uploadCampaignPhotos } from "@/lib/campaign-photos";
+import { FOOD_TYPES } from "@/lib/campaign";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,6 +72,7 @@ type Campaign = {
   slots: number;
   min_followers: number;
   deadline: string | null;
+  food_type: string | null;
   photos: string[];
   status: "draft" | "published" | "closed";
   created_at: string;
@@ -89,6 +91,7 @@ type Application = {
   // migration 套用前為 undefined，UI 會自動隱藏該區塊。
   visit_code?: string | null;
   visited?: boolean | null;
+  result_images?: string[] | null;
 };
 
 function MerchantBackoffice() {
@@ -905,9 +908,9 @@ function PerformanceSection({
                 {ok.map((a) => {
                   const p = creators[a.creator_id];
                   return (
+                    <div key={a.id} className="rounded-md border border-border p-3 text-sm">
                     <div
-                      key={a.id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-3 text-sm"
+                      className="flex flex-wrap items-center justify-between gap-2"
                     >
                       <span>
                         {p?.display_name ?? "Foodie"}{" "}
@@ -930,6 +933,26 @@ function PerformanceSection({
                         )}
                         <Badge variant={a.completed ? "default" : "secondary"}>{a.completed ? "已完成" : "進行中"}</Badge>
                       </div>
+                    </div>
+                    {a.result_images && a.result_images.length > 0 && (
+                      <div className="mt-2">
+                        <p className="mb-1 text-xs text-muted-foreground">
+                          成效截圖（{a.result_images.length}）
+                        </p>
+                        <div className="flex gap-2 overflow-x-auto">
+                          {a.result_images.map((src) => (
+                            <a key={src} href={src} target="_blank" rel="noreferrer">
+                              <img
+                                src={src}
+                                alt="Foodie 上傳的成效截圖"
+                                loading="lazy"
+                                className="h-20 w-20 shrink-0 rounded-md border border-border object-cover"
+                              />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     </div>
                   );
                 })}
@@ -1008,6 +1031,7 @@ const DEFAULT_FORM = {
   // they're converted back to numbers on submit.
   min_followers: "1000",
   collab_type: COLLAB_TYPES[0]!,
+  food_type: FOOD_TYPES[0]!,
   reward: "",
   slots: "3",
   deadline: "",
@@ -1022,6 +1046,7 @@ function campaignToForm(c: Campaign): typeof DEFAULT_FORM {
     region: c.region,
     min_followers: String(c.min_followers),
     collab_type: c.collab_type,
+    food_type: c.food_type ?? FOOD_TYPES[0]!,
     reward: c.reward,
     slots: String(c.slots),
     deadline: c.deadline ?? "",
@@ -1104,6 +1129,7 @@ function CampaignFormDialog({
         region: form.region,
         min_followers: Number(form.min_followers),
         collab_type: form.collab_type,
+        food_type: form.food_type,
         reward: form.reward,
         slots: Number(form.slots),
         deadline: form.deadline || null,
@@ -1163,6 +1189,18 @@ function CampaignFormDialog({
               >
                 {COLLAB_TYPES.map((r) => (
                   <option key={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>食物類型</Label>
+              <select
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={form.food_type}
+                onChange={(e) => setForm({ ...form, food_type: e.target.value })}
+              >
+                {FOOD_TYPES.map((t) => (
+                  <option key={t}>{t}</option>
                 ))}
               </select>
             </div>

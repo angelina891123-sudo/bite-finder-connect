@@ -20,6 +20,7 @@ export type Database = {
           completed: boolean
           completed_at: string | null
           created_at: string
+          result_images: string[]
           creator_id: string
           id: string
           message: string | null
@@ -36,6 +37,7 @@ export type Database = {
           completed?: boolean
           completed_at?: string | null
           created_at?: string
+          result_images?: string[]
           creator_id: string
           id?: string
           message?: string | null
@@ -52,6 +54,7 @@ export type Database = {
           completed?: boolean
           completed_at?: string | null
           created_at?: string
+          result_images?: string[]
           creator_id?: string
           id?: string
           message?: string | null
@@ -79,6 +82,7 @@ export type Database = {
           cover_url: string | null
           created_at: string
           deadline: string | null
+          food_type: string | null
           description: string | null
           id: string
           merchant_id: string
@@ -97,6 +101,7 @@ export type Database = {
           cover_url?: string | null
           created_at?: string
           deadline?: string | null
+          food_type?: string | null
           description?: string | null
           id?: string
           merchant_id: string
@@ -115,6 +120,7 @@ export type Database = {
           cover_url?: string | null
           created_at?: string
           deadline?: string | null
+          food_type?: string | null
           description?: string | null
           id?: string
           merchant_id?: string
@@ -138,6 +144,8 @@ export type Database = {
           collab_preferences: string[]
           created_at: string
           email: string | null
+          gender: string | null
+          age: number | null
           engagement_rate: number
           id: string
           ig_followers: number
@@ -170,6 +178,8 @@ export type Database = {
           collab_preferences?: string[]
           created_at?: string
           email?: string | null
+          gender?: string | null
+          age?: number | null
           engagement_rate?: number
           id?: string
           ig_followers?: number
@@ -202,6 +212,8 @@ export type Database = {
           collab_preferences?: string[]
           created_at?: string
           email?: string | null
+          gender?: string | null
+          age?: number | null
           engagement_rate?: number
           id?: string
           ig_followers?: number

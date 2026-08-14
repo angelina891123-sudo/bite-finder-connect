@@ -4,8 +4,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { CalendarDays, MapPin, Users, Gift, Search, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth, REGIONS } from "@/lib/auth";
-import { APPLIED_LABEL, isExpired, todayISO } from "@/lib/campaign";
+import { useAuth } from "@/lib/auth";
+import { APPLIED_LABEL, FOOD_TYPES, isExpired, todayISO } from "@/lib/campaign";
 import { SiteHeader } from "@/components/SiteHeader";
 import { CampaignDetailDialog } from "@/components/CampaignDetailDialog";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,7 @@ type Campaign = {
   reward: string;
   slots: number;
   deadline: string | null;
+  food_type: string | null;
   photos: string[];
 };
 
@@ -56,7 +57,7 @@ function Index() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [keyword, setKeyword] = useState("");
-  const [region, setRegion] = useState("全部");
+  const [foodType, setFoodType] = useState("全部");
   const [target, setTarget] = useState<Campaign | null>(null);
   const [detail, setDetail] = useState<Campaign | null>(null);
   const [message, setMessage] = useState("");
@@ -68,7 +69,9 @@ function Index() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("campaigns")
-        .select("id,title,description,restaurant_name,region,min_followers,collab_type,reward,slots,deadline,photos")
+        // 用 * 而非列舉欄位：food_type 於 20260814140000 migration 新增，
+        // 尚未套用時列舉會讓整個查詢失敗，用 * 則只是讀不到該欄位。
+        .select("*")
         .eq("status", "published")
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -113,13 +116,14 @@ function Index() {
   });
 
   const noProfile = myFollowers === null;
-  const belowThreshold =
-    target && typeof myFollowers === "number" ? myFollowers < target.min_followers : false;
+  // 粉絲數尚在載入時回傳 null，避免誤判成未達標而擋下申請。
+  const belowThresholdFor = (c: Campaign) =>
+    myFollowers === undefined ? null : (myFollowers ?? 0) < c.min_followers;
 
   const filtered = campaigns
     .filter(
       (c) =>
-        (region === "全部" || c.region === region) &&
+        (foodType === "全部" || c.food_type === foodType) &&
         (keyword.trim() === "" ||
           `${c.title}${c.restaurant_name ?? ""}${c.collab_type}`.toLowerCase().includes(keyword.toLowerCase())),
     )
@@ -142,6 +146,15 @@ function Index() {
     }
     if (!isCreator) {
       toast.error("此帳號不是 Foodie 身分，請以 Foodie 帳號登入申請");
+      return;
+    }
+    // 粉絲數未達案件門檻者不開放申請。
+    if (belowThresholdFor(c)) {
+      toast.error(
+        noProfile
+          ? "你尚未填寫社群資料，請先到「我的申請 → 個人資料管理」填寫粉絲數"
+          : `未達標準，無法申請。此案件粉絲門檻為 ${c.min_followers.toLocaleString()} 人，你目前為 ${(myFollowers ?? 0).toLocaleString()} 人`,
+      );
       return;
     }
     setMessage("");
@@ -206,12 +219,12 @@ function Index() {
             </div>
             <select
               className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-              value={region}
-              onChange={(e) => setRegion(e.target.value)}
+              value={foodType}
+              onChange={(e) => setFoodType(e.target.value)}
             >
-              {["全部", ...REGIONS].map((r) => (
-                <option key={r} value={r}>
-                  {r}
+              {["全部", ...FOOD_TYPES].map((t) => (
+                <option key={t} value={t}>
+                  {t}
                 </option>
               ))}
             </select>
@@ -230,6 +243,7 @@ function Index() {
               const photos = c.photos ?? [];
               const expired = isExpired(c.deadline, today);
               const applied = appliedMap[c.id];
+              const below = belowThresholdFor(c) === true;
               return (
               <Card key={c.id} className={`flex flex-col ${expired ? "opacity-60" : ""}`}>
                 {photos[0] && (
@@ -270,10 +284,18 @@ function Index() {
                   </Button>
                   <Button
                     className="flex-1"
-                    disabled={expired || !!applied}
+                    disabled={expired || !!applied || (below && !noProfile)}
                     onClick={() => onApplyClick(c)}
                   >
-                    {expired ? "已截止" : applied ? (APPLIED_LABEL[applied] ?? "已申請") : "申請合作"}
+                    {expired
+                      ? "已截止"
+                      : applied
+                        ? (APPLIED_LABEL[applied] ?? "已申請")
+                        : noProfile
+                          ? "請先填寫資料"
+                          : below
+                            ? "未達標準"
+                            : "申請合作"}
                   </Button>
                 </CardFooter>
               </Card>
@@ -297,7 +319,10 @@ function Index() {
         </Button>
         <Button
           disabled={
-            !detail || isExpired(detail.deadline, today) || !!(detail && appliedMap[detail.id])
+            !detail ||
+            isExpired(detail.deadline, today) ||
+            !!appliedMap[detail.id] ||
+            (belowThresholdFor(detail) === true && !noProfile)
           }
           onClick={() => {
             if (!detail) return;
@@ -310,7 +335,11 @@ function Index() {
             ? "已截止"
             : detail && appliedMap[detail.id]
               ? (APPLIED_LABEL[appliedMap[detail.id]!] ?? "已申請")
-              : "申請合作"}
+              : noProfile
+                ? "請先填寫資料"
+                : detail && belowThresholdFor(detail) === true
+                  ? "未達標準"
+                  : "申請合作"}
         </Button>
       </CampaignDetailDialog>
 
@@ -326,7 +355,7 @@ function Index() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
           />
-          {noProfile ? (
+          {noProfile && (
             <div className="flex gap-2 rounded-md border border-primary/40 bg-accent p-3 text-sm">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               <span>
@@ -334,19 +363,9 @@ function Index() {
                 <Link to="/my-applications" className="font-medium text-primary underline">
                   我的申請 → 個人資料管理
                 </Link>{" "}
-                補上粉絲數，再送出申請。
+                補上粉絲數。
               </span>
             </div>
-          ) : (
-            belowThreshold && (
-              <div className="flex gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>
-                  此案件粉絲門檻為 {target?.min_followers.toLocaleString()} 人，你目前登錄的粉絲數為{" "}
-                  {(myFollowers ?? 0).toLocaleString()} 人，尚未達標。仍可送出申請，但商家可能不予核准。
-                </span>
-              </div>
-            )
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setTarget(null)}>

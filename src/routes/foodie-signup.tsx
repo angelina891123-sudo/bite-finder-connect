@@ -8,6 +8,7 @@ import { areasOf, passwordScore } from "@/lib/regions";
 import {
   COLLAB_PREFS,
   FOODIE_CATEGORIES,
+  GENDERS,
   PENDING_KEY,
   saveFoodieProfile,
   type FoodieForm,
@@ -51,6 +52,8 @@ function FoodieSignup() {
     email: "",
     password: "",
     phone: "",
+    gender: GENDERS[0] ?? "女",
+    age: "",
     region: REGIONS[0] ?? "台北市",
     ig: "",
     igUrl: "",
@@ -98,6 +101,8 @@ function FoodieSignup() {
       realName: f.realName,
       email: f.email,
       phone: f.phone,
+      gender: f.gender,
+      age: f.age,
       region: f.region,
       areas,
       ig: f.ig,
@@ -243,6 +248,14 @@ function FoodieSignup() {
                     </Field>
                     <Field label="手機號碼">
                       <Input value={f.phone} onChange={set("phone")} placeholder="0912-345-678" />
+                    </Field>
+                    <Field label="性別">
+                      <SelectBox value={f.gender} onChange={set("gender")} options={GENDERS} />
+                    </Field>
+                    <Field label="年齡">
+                      <Unit unit="歲">
+                        <Input inputMode="numeric" value={f.age} onChange={set("age")} placeholder="25" />
+                      </Unit>
                     </Field>
                     <Field label="常駐地區">
                       <SelectBox
