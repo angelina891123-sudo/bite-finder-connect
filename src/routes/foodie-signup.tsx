@@ -5,8 +5,16 @@ import { Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { REGIONS } from "@/lib/auth";
 import { areasOf, passwordScore } from "@/lib/regions";
+import {
+  COLLAB_PREFS,
+  FOODIE_CATEGORIES,
+  PENDING_KEY,
+  saveFoodieProfile,
+  type FoodieForm,
+} from "@/lib/foodie-profile";
 import { PasswordStrength } from "@/components/PasswordStrength";
 import { SiteHeader } from "@/components/SiteHeader";
+import { Field, SelectBox, TagGroup, Unit } from "@/components/form-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,19 +33,11 @@ export const Route = createFileRoute("/foodie-signup")({
   component: FoodieSignup,
 });
 
-const CATEGORIES = ["美食探店", "甜點下午茶", "飲料手搖", "親子友善餐廳", "宵夜燒烤", "開箱試吃"];
-const COLLAB_PREFS = ["免費體驗", "含現金報酬", "長期配合"];
-
 const STEPS = [
   { n: 1, title: "基本資料", desc: "姓名、聯絡方式、居住地區" },
   { n: 2, title: "社群數據", desc: "粉絲數、觸及與互動表現" },
   { n: 3, title: "內容偏好", desc: "擅長類型與合作意願" },
 ];
-
-function num(v: string) {
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
-}
 
 function FoodieSignup() {
   const navigate = useNavigate();
@@ -60,6 +60,10 @@ function FoodieSignup() {
     threadsFollowers: "",
     youtube: "",
     youtubeSubs: "",
+    tiktok: "",
+    tiktokFollowers: "",
+    otherSocial: "",
+    otherSocialFollowers: "",
     portfolio: "",
   });
   const [cats, setCats] = useState<string[]>([]);
@@ -88,6 +92,31 @@ function FoodieSignup() {
 
   const submit = async () => {
     setBusy(true);
+
+    const form: FoodieForm = {
+      nickname: f.nickname,
+      realName: f.realName,
+      email: f.email,
+      phone: f.phone,
+      region: f.region,
+      areas,
+      ig: f.ig,
+      igUrl: f.igUrl,
+      igFollowers: f.igFollowers,
+      reels: f.reels,
+      threads: f.threads,
+      threadsFollowers: f.threadsFollowers,
+      youtube: f.youtube,
+      youtubeSubs: f.youtubeSubs,
+      tiktok: f.tiktok,
+      tiktokFollowers: f.tiktokFollowers,
+      otherSocial: f.otherSocial,
+      otherSocialFollowers: f.otherSocialFollowers,
+      portfolio: f.portfolio,
+      cats,
+      prefs,
+    };
+
     const { data, error } = await supabase.auth.signUp({
       email: f.email.trim(),
       password: f.password,
@@ -98,6 +127,9 @@ function FoodieSignup() {
           display_name: f.nickname.trim(),
           instagram_handle: f.ig.trim() || null,
           region: f.region,
+          // 需要 Email 驗證時 signUp 不會回傳 session，先暫存整份表單，
+          // 待驗證完成登入後由 syncPendingFoodieProfile 補寫入。
+          [PENDING_KEY]: form,
         },
       },
     });
@@ -109,32 +141,8 @@ function FoodieSignup() {
     }
 
     if (data.session?.user) {
-      const { error: pErr } = await supabase.from("foodie_profiles").insert({
-        user_id: data.session.user.id,
-        nickname: f.nickname.trim(),
-        real_name: f.realName.trim() || null,
-        email: f.email.trim(),
-        phone: f.phone.trim() || null,
-        region: f.region,
-        area: areas[0] ?? null,
-        areas,
-        ig_handle: f.ig.trim() || null,
-        ig_url: f.igUrl.trim() || null,
-        ig_followers: num(f.igFollowers),
-        reels_avg_views: num(f.reels),
-        threads_handle: f.threads.trim() || null,
-        threads_followers: num(f.threadsFollowers),
-        youtube_channel: f.youtube.trim() || null,
-        youtube_subscribers: num(f.youtubeSubs),
-        categories: cats,
-        collab_preferences: prefs,
-        portfolio_url: f.portfolio.trim() || null,
-      });
-      if (pErr) toast.error(pErr.message);
-      await supabase
-        .from("profiles")
-        .update({ follower_count: num(f.igFollowers), phone: f.phone.trim() || null })
-        .eq("id", data.session.user.id);
+      const saveError = await saveFoodieProfile(data.session.user.id, form);
+      if (saveError) toast.error(saveError.message);
     }
 
     setBusy(false);
@@ -290,6 +298,26 @@ function FoodieSignup() {
                         <Input inputMode="numeric" value={f.youtubeSubs} onChange={set("youtubeSubs")} />
                       </Unit>
                     </Field>
+                    <Field label="TikTok 帳號" hint="選填">
+                      <Input value={f.tiktok} onChange={set("tiktok")} placeholder="@your_tiktok" />
+                    </Field>
+                    <Field label="TikTok 粉絲數" hint="選填">
+                      <Unit unit="人">
+                        <Input inputMode="numeric" value={f.tiktokFollowers} onChange={set("tiktokFollowers")} />
+                      </Unit>
+                    </Field>
+                    <Field label="其他社群帳號" hint="選填，請一併填寫平台名稱">
+                      <Input value={f.otherSocial} onChange={set("otherSocial")} placeholder="例如：小紅書 @your_id" />
+                    </Field>
+                    <Field label="其他社群粉絲數" hint="選填">
+                      <Unit unit="人">
+                        <Input
+                          inputMode="numeric"
+                          value={f.otherSocialFollowers}
+                          onChange={set("otherSocialFollowers")}
+                        />
+                      </Unit>
+                    </Field>
                   </div>
                 )}
 
@@ -299,7 +327,7 @@ function FoodieSignup() {
                       <Label>
                         擅長內容類別 <span className="text-xs font-normal text-muted-foreground">可複選</span>
                       </Label>
-                      <TagGroup options={CATEGORIES} selected={cats} onToggle={(v) => toggle(cats, setCats, v)} />
+                      <TagGroup options={FOODIE_CATEGORIES} selected={cats} onToggle={(v) => toggle(cats, setCats, v)} />
                     </div>
                     <div className="space-y-2">
                       <Label>
@@ -340,89 +368,3 @@ function FoodieSignup() {
   );
 }
 
-function Field({
-  label,
-  hint,
-  full,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  full?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className={`flex flex-col gap-1.5 ${full ? "sm:col-span-2" : ""}`}>
-      <Label className="text-[12.5px]">
-        {label}
-        {hint && <span className="ml-1 text-[10.5px] font-normal text-muted-foreground">{hint}</span>}
-      </Label>
-      {children}
-    </div>
-  );
-}
-
-function Unit({ unit, children }: { unit: string; children: React.ReactNode }) {
-  return (
-    <div className="relative">
-      {children}
-      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11.5px] text-muted-foreground">
-        {unit}
-      </span>
-    </div>
-  );
-}
-
-function SelectBox({
-  value,
-  onChange,
-  options,
-}: {
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
-  options: readonly string[];
-}) {
-  return (
-    <select
-      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-      value={value}
-      onChange={onChange}
-    >
-      {options.map((o) => (
-        <option key={o} value={o}>
-          {o}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-function TagGroup({
-  options,
-  selected,
-  onToggle,
-}: {
-  options: string[];
-  selected: string[];
-  onToggle: (v: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {options.map((o) => {
-        const on = selected.includes(o);
-        return (
-          <button
-            key={o}
-            type="button"
-            onClick={() => onToggle(o)}
-            className={`rounded-full border px-4 py-2 text-[12.5px] font-medium transition-colors ${
-              on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background hover:bg-accent"
-            }`}
-          >
-            {o}
-          </button>
-        );
-      })}
-    </div>
-  );
-}

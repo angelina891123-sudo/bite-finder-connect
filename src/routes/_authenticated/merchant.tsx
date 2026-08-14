@@ -82,6 +82,10 @@ type Application = {
   submission_url: string | null;
   completed: boolean;
   created_at: string;
+  // 到店核銷欄位，於 20260813180000_visit_verification_code.sql 新增；
+  // migration 套用前為 undefined，UI 會自動隱藏該區塊。
+  visit_code?: string | null;
+  visited?: boolean | null;
 };
 
 function MerchantBackoffice() {
@@ -91,6 +95,9 @@ function MerchantBackoffice() {
   const [section, setSection] = useState<MenuKey>("foodie");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Campaign | null>(null);
+  const [redeemTarget, setRedeemTarget] = useState<Application | null>(null);
+  const [code, setCode] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
 
   const { data: campaigns = [] } = useQuery({
     queryKey: ["merchant-campaigns", user?.id],
@@ -141,6 +148,32 @@ function MerchantBackoffice() {
       return;
     }
     toast.success(status === "approved" ? "已核准申請" : "已拒絕申請");
+    void qc.invalidateQueries({ queryKey: ["merchant-applications", user?.id] });
+  };
+
+  const redeem = async () => {
+    if (!redeemTarget) return;
+    const value = code.trim();
+    if (!/^\d{6}$/.test(value)) {
+      toast.error("請輸入 6 位數字代碼");
+      return;
+    }
+    if (value !== redeemTarget.visit_code) {
+      toast.error("代碼不正確，請確認 Foodie 出示的代碼");
+      return;
+    }
+    setRedeeming(true);
+    const { error } = await supabase
+      .from("applications")
+      .update({ visited: true })
+      .eq("id", redeemTarget.id);
+    setRedeeming(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(`${creators[redeemTarget.creator_id]?.display_name ?? "該 Foodie"} 到店成功`);
+    setRedeemTarget(null);
     void qc.invalidateQueries({ queryKey: ["merchant-applications", user?.id] });
   };
 
@@ -303,6 +336,27 @@ function MerchantBackoffice() {
                                 </Badge>
                               </div>
                               {a.message && <p className="mt-1 text-xs text-muted-foreground">{a.message}</p>}
+                              {a.status === "approved" && a.visit_code && (
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                  {a.visited ? (
+                                    <span className="text-xs font-medium text-primary">✓ 已到店</span>
+                                  ) : (
+                                    <>
+                                      <span className="text-xs text-muted-foreground">尚未到店</span>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          setCode("");
+                                          setRedeemTarget(a);
+                                        }}
+                                      >
+                                        輸入到店代碼
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                              )}
                               {a.status === "pending" && (
                                 <div className="mt-2 flex gap-2">
                                   <Button size="sm" onClick={() => decide(a.id, "approved")}>
@@ -341,6 +395,34 @@ function MerchantBackoffice() {
         onSaved={() => void qc.invalidateQueries({ queryKey: ["merchant-campaigns", user?.id] })}
         userId={user?.id ?? ""}
       />
+
+      <Dialog open={redeemTarget !== null} onOpenChange={(o) => !o && setRedeemTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>確認 Foodie 到店</DialogTitle>
+            <DialogDescription>
+              請輸入 {creators[redeemTarget?.creator_id ?? ""]?.display_name ?? "該 Foodie"}{" "}
+              出示的 6 位數字到店代碼。
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            inputMode="numeric"
+            maxLength={6}
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+            placeholder="000000"
+            className="text-center font-mono text-2xl tracking-[0.3em]"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRedeemTarget(null)}>
+              取消
+            </Button>
+            <Button onClick={redeem} disabled={redeeming}>
+              確認到店
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

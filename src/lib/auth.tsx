@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { syncPendingFoodieProfile } from "@/lib/foodie-profile";
 
 export type AppRole = "admin" | "merchant" | "creator";
 
@@ -26,7 +27,12 @@ export function useAuth() {
       if (!active) return;
       setSession(s);
       setUser(s?.user ?? null);
-      setTimeout(() => void loadRoles(s?.user?.id), 0);
+      setTimeout(() => {
+        void loadRoles(s?.user?.id);
+        // 補寫入註冊時因 Email 驗證而無法寫入的 Foodie 資料。
+        // 掛在這裡（而非個別路由）才能涵蓋首頁等不需登入的頁面。
+        void syncPendingFoodieProfile(s?.user);
+      }, 0);
     });
 
     void supabase.auth.getSession().then(async ({ data }) => {
@@ -34,6 +40,7 @@ export function useAuth() {
       setSession(data.session);
       setUser(data.session?.user ?? null);
       await loadRoles(data.session?.user?.id);
+      void syncPendingFoodieProfile(data.session?.user);
       if (active) setLoading(false);
     });
 

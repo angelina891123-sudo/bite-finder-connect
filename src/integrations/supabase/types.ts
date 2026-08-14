@@ -27,6 +27,9 @@ export type Database = {
           submission_url: string | null
           submitted_at: string | null
           updated_at: string
+          visit_code: string | null
+          visited: boolean
+          visited_at: string | null
         }
         Insert: {
           campaign_id: string
@@ -40,6 +43,9 @@ export type Database = {
           submission_url?: string | null
           submitted_at?: string | null
           updated_at?: string
+          visit_code?: string | null
+          visited?: boolean
+          visited_at?: string | null
         }
         Update: {
           campaign_id?: string
@@ -53,6 +59,9 @@ export type Database = {
           submission_url?: string | null
           submitted_at?: string | null
           updated_at?: string
+          visit_code?: string | null
+          visited?: boolean
+          visited_at?: string | null
         }
         Relationships: [
           {
@@ -143,6 +152,10 @@ export type Database = {
           review_note: string | null
           reviewed_at: string | null
           threads_followers: number
+          tiktok_handle: string | null
+          tiktok_followers: number
+          other_social_handle: string | null
+          other_social_followers: number
           threads_handle: string | null
           updated_at: string
           user_id: string
@@ -171,6 +184,10 @@ export type Database = {
           review_note?: string | null
           reviewed_at?: string | null
           threads_followers?: number
+          tiktok_handle?: string | null
+          tiktok_followers?: number
+          other_social_handle?: string | null
+          other_social_followers?: number
           threads_handle?: string | null
           updated_at?: string
           user_id: string
@@ -199,6 +216,10 @@ export type Database = {
           review_note?: string | null
           reviewed_at?: string | null
           threads_followers?: number
+          tiktok_handle?: string | null
+          tiktok_followers?: number
+          other_social_handle?: string | null
+          other_social_followers?: number
           threads_handle?: string | null
           updated_at?: string
           user_id?: string
