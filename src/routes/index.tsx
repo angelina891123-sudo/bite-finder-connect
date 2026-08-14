@@ -46,7 +46,7 @@ type Campaign = {
   reward: string;
   slots: number;
   deadline: string | null;
-  photos: string[] | null;
+  photos: string[];
 };
 
 function Index() {
@@ -184,11 +184,13 @@ function Index() {
           </p>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((c) => (
+            {filtered.map((c) => {
+              const photos = c.photos ?? [];
+              return (
               <Card key={c.id} className="flex flex-col">
-                {c.photos && c.photos.length > 0 && (
+                {photos[0] && (
                   <img
-                    src={c.photos[0]}
+                    src={photos[0]}
                     alt={`${c.title} 案件照片`}
                     loading="lazy"
                     className="h-40 w-full rounded-t-xl object-cover"
@@ -222,7 +224,8 @@ function Index() {
                   </Button>
                 </CardFooter>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
