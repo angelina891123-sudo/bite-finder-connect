@@ -14,22 +14,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   collabStats,
-  PLANS,
   planOf,
+  rawSupabase,
   platformsOf,
   SUBSCRIPTION_LABEL,
   type ApplicationRow,
   type FoodieRow,
   type MerchantRow,
-  type PlanKey,
   type SubscriptionStatus,
   type VStatus,
 } from "./-data";
@@ -41,8 +33,6 @@ export const V_LABEL: Record<VStatus, string> = {
   approved: "已通過",
   rejected: "已拒絕",
 };
-
-export const UNSET = "（未設定）";
 
 /** 主要動作按鈕：肚肚橘 */
 export const BTN_ACCENT = "bg-[#FF8300] text-white hover:bg-[#E67600]";
@@ -58,7 +48,7 @@ export function StatusBadge({ status }: { status: VStatus }) {
 
 export function PlanBadge({ plan }: { plan: string | null }) {
   const p = planOf(plan);
-  if (!p) return <span className="text-sm text-[#A08E7C]">{UNSET}</span>;
+  if (!p) return <span className="text-sm text-[#A08E7C]">—</span>;
   return (
     <Badge variant="outline" className="border-[#FF8300] text-[#B85C00]">
       {p.label}
@@ -76,6 +66,10 @@ export function SubscriptionBadge({ status }: { status: SubscriptionStatus }) {
       {SUBSCRIPTION_LABEL[status]}
     </Badge>
   );
+}
+
+export function BlacklistBadge() {
+  return <Badge variant="destructive">黑名單</Badge>;
 }
 
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -116,46 +110,30 @@ export function useReviewActions() {
     return true;
   };
 
-  const setPlan = async (id: string, plan: string) => {
-    const { error } = await supabase
+  /**
+   * 黑名單僅限平台管理員；資料庫層也有觸發器把關。
+   * 走 rawSupabase 是因為 blacklisted 等欄位是本分支新增的，
+   * 還沒反映在自動產生的 types.ts。重新產生型別後即可改回具型別的 client。
+   */
+  const setBlacklist = async (id: string, blacklisted: boolean, reason: string) => {
+    const { error } = await rawSupabase
       .from("merchant_profiles")
-      .update({ foodie_plan: plan === UNSET ? null : (plan as PlanKey) })
+      .update({
+        blacklisted,
+        blacklist_reason: blacklisted ? reason.trim() || null : null,
+        blacklisted_at: blacklisted ? new Date().toISOString() : null,
+      })
       .eq("id", id);
     if (error) {
       toast.error(error.message);
-      return;
+      return false;
     }
-    toast.success("方案已更新");
+    toast.success(blacklisted ? "已列入黑名單" : "已移出黑名單");
     void qc.invalidateQueries({ queryKey: ["console-merchants"] });
+    return true;
   };
 
-  return { review, setPlan };
-}
-
-export function PlanSelect({
-  value,
-  onChange,
-  className,
-}: {
-  value: string | null;
-  onChange: (v: string) => void;
-  className?: string;
-}) {
-  return (
-    <Select value={value ?? UNSET} onValueChange={onChange}>
-      <SelectTrigger className={className ?? "h-8 w-32"}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={UNSET}>{UNSET}</SelectItem>
-        {PLANS.map((p) => (
-          <SelectItem key={p.key} value={p.key}>
-            {p.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
+  return { review, setBlacklist };
 }
 
 export function MerchantDialog({
@@ -165,19 +143,19 @@ export function MerchantDialog({
   merchant: MerchantRow | null;
   onClose: () => void;
 }) {
-  const { review, setPlan } = useReviewActions();
-  const [note, setNote] = useState("");
+  const { setBlacklist } = useReviewActions();
+  const [reason, setReason] = useState("");
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
-  // 開啟不同商家時載入該筆的既有備註
+  // 開啟不同商家時載入該筆既有的黑名單原因
   if (merchant && loadedFor !== merchant.id) {
     setLoadedFor(merchant.id);
-    setNote(merchant.review_note ?? "");
+    setReason(merchant.blacklist_reason ?? "");
   }
 
-  const decide = async (status: VStatus) => {
+  const toggleBlacklist = async () => {
     if (!merchant) return;
-    if (await review("merchant_profiles", merchant.id, status, note)) onClose();
+    if (await setBlacklist(merchant.id, !merchant.blacklisted, reason)) onClose();
   };
 
   const plan = planOf(merchant?.foodie_plan);
@@ -195,52 +173,61 @@ export function MerchantDialog({
                 <div>
                   <p className="text-xs text-[#A08E7C]">方案別</p>
                   <p className="mt-0.5 text-sm font-medium text-[#3F2E1E]">
-                    {plan ? `${plan.label}．${plan.desc}` : UNSET}
+                    {plan ? `${plan.label}．${plan.desc}` : "—"}
                   </p>
-                  <div className="mt-1.5">
-                    <SubscriptionBadge status={merchant.foodie_subscription_status} />
-                  </div>
                 </div>
-                <PlanSelect
-                  value={merchant.foodie_plan}
-                  onChange={(v) => setPlan(merchant.id, v)}
-                  className="h-9 w-36"
-                />
+                <SubscriptionBadge status={merchant.foodie_subscription_status} />
               </div>
             </div>
 
+            {merchant.blacklisted && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="text-sm font-semibold text-red-800">此商家已列入黑名單</p>
+                <p className="mt-1 text-xs text-red-700">
+                  {merchant.blacklist_reason || "未填寫原因"}
+                  {merchant.blacklisted_at &&
+                    ` · ${new Date(merchant.blacklisted_at).toLocaleString()}`}
+                </p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
-              <Field label="狀態">{V_LABEL[merchant.verification_status]}</Field>
               <Field label="聯絡人">{merchant.contact_name ?? "—"}</Field>
               <Field label="電話">{merchant.phone ?? "—"}</Field>
               <Field label="Email">{merchant.email ?? "—"}</Field>
               <Field label="地區">{merchant.region ?? "—"}</Field>
               <Field label="地址">{merchant.address ?? "—"}</Field>
+              <Field label="訂閱時間">{new Date(merchant.updated_at).toLocaleString()}</Field>
               <Field label="註冊時間">{new Date(merchant.created_at).toLocaleString()}</Field>
-              <Field label="上次審核">
-                {merchant.reviewed_at ? new Date(merchant.reviewed_at).toLocaleString() : "—"}
-              </Field>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="m-note">審核備註</Label>
-              <Textarea
-                id="m-note"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="記錄審核理由或待補資料"
-                rows={3}
-              />
-            </div>
+            {!merchant.blacklisted && (
+              <div className="space-y-2">
+                <Label htmlFor="m-reason">黑名單原因</Label>
+                <Textarea
+                  id="m-reason"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="列入黑名單的理由，例如未依約付款、內容違規"
+                  rows={3}
+                />
+              </div>
+            )}
           </div>
         )}
         <DialogFooter>
-          <Button variant="outline" onClick={() => decide("rejected")}>
-            拒絕
+          <Button variant="outline" className="border-[#EFE3D6] bg-white" onClick={onClose}>
+            關閉
           </Button>
-          <Button className={BTN_ACCENT} onClick={() => decide("approved")}>
-            通過
-          </Button>
+          {merchant?.blacklisted ? (
+            <Button className={BTN_ACCENT} onClick={toggleBlacklist}>
+              移出黑名單
+            </Button>
+          ) : (
+            <Button variant="destructive" onClick={toggleBlacklist}>
+              列入黑名單
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

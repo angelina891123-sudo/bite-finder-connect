@@ -64,10 +64,14 @@ export type MerchantRow = {
   address: string | null;
   foodie_plan: PlanKey | null;
   foodie_subscription_status: SubscriptionStatus;
+  blacklisted: boolean;
+  blacklist_reason: string | null;
+  blacklisted_at: string | null;
   verification_status: VStatus;
   review_note: string | null;
   reviewed_at: string | null;
   created_at: string;
+  updated_at: string;
 };
 
 export type FoodieRow = {
@@ -348,9 +352,3 @@ export const TWD = new Intl.NumberFormat("zh-TW", {
   currency: "TWD",
   maximumFractionDigits: 0,
 });
-
-/** 目前月份，格式 YYYY-MM，作為對帳期間的預設值。 */
-export function currentPeriod() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}

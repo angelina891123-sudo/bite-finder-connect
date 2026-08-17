@@ -292,7 +292,7 @@ ${trendChart ? `<div class="chart">${trendChart}</div><p class="legend"><i style
   <tbody>${trendRows}</tbody>
 </table>
 
-<h2>申請狀態分布</h2>
+<h2>媒合狀態</h2>
 ${statusChart ? `<div class="chart">${statusChart}</div><p class="legend">${statusPie.map((d, i) => `<i style="background:${PIE_COLORS[i % PIE_COLORS.length]}"></i>${esc(d.name)}`).join("")}</p>` : ""}
 <table style="margin-top:8px">
   <thead><tr><th>狀態</th><th class="n">筆數</th><th class="n">占比</th></tr></thead>
@@ -317,15 +317,50 @@ ${statusChart ? `<div class="chart">${statusChart}</div><p class="legend">${stat
 </body>
 </html>`;
 
-    const w = window.open("", "_blank", "width=1000,height=800");
-    if (!w) {
-      toast.error("瀏覽器阻擋了新視窗，請允許此網站開啟彈出視窗後再試");
+    // 用隱藏的 iframe 列印，而不是 window.open —— 開新視窗會被瀏覽器的
+    // 彈出視窗封鎖擋掉。列印失敗時退而下載 HTML 檔，使用者可自行開啟列印。
+    const downloadHtml = () => {
+      const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `成效報告_${dateStr}.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.info("已下載報告檔案，開啟後可用瀏覽器列印或另存為 PDF");
+    };
+
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      iframe.remove();
+      downloadHtml();
       return;
     }
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    w.print();
+
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    const run = () => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch {
+        downloadHtml();
+      }
+      // 列印對話框是同步的，關閉後才會走到這裡；仍留緩衝時間避免過早移除
+      window.setTimeout(() => iframe.remove(), 1000);
+    };
+
+    if (doc.readyState === "complete") {
+      window.setTimeout(run, 50);
+    } else {
+      iframe.onload = run;
+    }
   };
 
   return (
@@ -400,7 +435,7 @@ ${statusChart ? `<div class="chart">${statusChart}</div><p class="legend">${stat
 
         <Card className="border-[#EFE3D6] bg-white">
           <CardHeader>
-            <CardTitle className="text-base">申請狀態分布</CardTitle>
+            <CardTitle className="text-base">媒合狀態</CardTitle>
           </CardHeader>
           <CardContent className="h-72" id="chart-status">
             {statusPie.length === 0 ? (

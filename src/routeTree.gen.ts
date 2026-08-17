@@ -22,8 +22,6 @@ import { Route as ConsoleIndexRouteImport } from './routes/console/index'
 import { Route as ConsoleCampaignsRouteImport } from './routes/console/campaigns'
 import { Route as ConsoleCreatorsRouteImport } from './routes/console/creators'
 import { Route as ConsoleMerchantsRouteImport } from './routes/console/merchants'
-import { Route as ConsoleReviewsRouteImport } from './routes/console/reviews'
-import { Route as ConsoleSettlementsRouteImport } from './routes/console/settlements'
 import { Route as ConsoleSubmissionsRouteImport } from './routes/console/submissions'
 import { Route as ConsoleLoginRouteImport } from './routes/console_.login'
 
@@ -92,16 +90,6 @@ const ConsoleMerchantsRoute = ConsoleMerchantsRouteImport.update({
   path: '/merchants',
   getParentRoute: () => ConsoleRouteRoute,
 } as any)
-const ConsoleReviewsRoute = ConsoleReviewsRouteImport.update({
-  id: '/reviews',
-  path: '/reviews',
-  getParentRoute: () => ConsoleRouteRoute,
-} as any)
-const ConsoleSettlementsRoute = ConsoleSettlementsRouteImport.update({
-  id: '/settlements',
-  path: '/settlements',
-  getParentRoute: () => ConsoleRouteRoute,
-} as any)
 const ConsoleSubmissionsRoute = ConsoleSubmissionsRouteImport.update({
   id: '/submissions',
   path: '/submissions',
@@ -125,8 +113,6 @@ export interface FileRoutesByFullPath {
   '/console/campaigns': typeof ConsoleCampaignsRoute
   '/console/creators': typeof ConsoleCreatorsRoute
   '/console/merchants': typeof ConsoleMerchantsRoute
-  '/console/reviews': typeof ConsoleReviewsRoute
-  '/console/settlements': typeof ConsoleSettlementsRoute
   '/console/submissions': typeof ConsoleSubmissionsRoute
   '/console/login': typeof ConsoleLoginRoute
   '/console/': typeof ConsoleIndexRoute
@@ -142,8 +128,6 @@ export interface FileRoutesByTo {
   '/console/campaigns': typeof ConsoleCampaignsRoute
   '/console/creators': typeof ConsoleCreatorsRoute
   '/console/merchants': typeof ConsoleMerchantsRoute
-  '/console/reviews': typeof ConsoleReviewsRoute
-  '/console/settlements': typeof ConsoleSettlementsRoute
   '/console/submissions': typeof ConsoleSubmissionsRoute
   '/console/login': typeof ConsoleLoginRoute
   '/console': typeof ConsoleIndexRoute
@@ -162,8 +146,6 @@ export interface FileRoutesById {
   '/console/campaigns': typeof ConsoleCampaignsRoute
   '/console/creators': typeof ConsoleCreatorsRoute
   '/console/merchants': typeof ConsoleMerchantsRoute
-  '/console/reviews': typeof ConsoleReviewsRoute
-  '/console/settlements': typeof ConsoleSettlementsRoute
   '/console/submissions': typeof ConsoleSubmissionsRoute
   '/console_/login': typeof ConsoleLoginRoute
   '/console/': typeof ConsoleIndexRoute
@@ -182,8 +164,6 @@ export interface FileRouteTypes {
     | '/console/campaigns'
     | '/console/creators'
     | '/console/merchants'
-    | '/console/reviews'
-    | '/console/settlements'
     | '/console/submissions'
     | '/console/login'
     | '/console/'
@@ -199,8 +179,6 @@ export interface FileRouteTypes {
     | '/console/campaigns'
     | '/console/creators'
     | '/console/merchants'
-    | '/console/reviews'
-    | '/console/settlements'
     | '/console/submissions'
     | '/console/login'
     | '/console'
@@ -218,8 +196,6 @@ export interface FileRouteTypes {
     | '/console/campaigns'
     | '/console/creators'
     | '/console/merchants'
-    | '/console/reviews'
-    | '/console/settlements'
     | '/console/submissions'
     | '/console_/login'
     | '/console/'
@@ -328,20 +304,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConsoleMerchantsRouteImport
       parentRoute: typeof ConsoleRouteRoute
     }
-    '/console/reviews': {
-      id: '/console/reviews'
-      path: '/reviews'
-      fullPath: '/console/reviews'
-      preLoaderRoute: typeof ConsoleReviewsRouteImport
-      parentRoute: typeof ConsoleRouteRoute
-    }
-    '/console/settlements': {
-      id: '/console/settlements'
-      path: '/settlements'
-      fullPath: '/console/settlements'
-      preLoaderRoute: typeof ConsoleSettlementsRouteImport
-      parentRoute: typeof ConsoleRouteRoute
-    }
     '/console/submissions': {
       id: '/console/submissions'
       path: '/submissions'
@@ -378,8 +340,6 @@ interface ConsoleRouteRouteChildren {
   ConsoleCampaignsRoute: typeof ConsoleCampaignsRoute
   ConsoleCreatorsRoute: typeof ConsoleCreatorsRoute
   ConsoleMerchantsRoute: typeof ConsoleMerchantsRoute
-  ConsoleReviewsRoute: typeof ConsoleReviewsRoute
-  ConsoleSettlementsRoute: typeof ConsoleSettlementsRoute
   ConsoleSubmissionsRoute: typeof ConsoleSubmissionsRoute
   ConsoleIndexRoute: typeof ConsoleIndexRoute
 }
@@ -388,8 +348,6 @@ const ConsoleRouteRouteChildren: ConsoleRouteRouteChildren = {
   ConsoleCampaignsRoute: ConsoleCampaignsRoute,
   ConsoleCreatorsRoute: ConsoleCreatorsRoute,
   ConsoleMerchantsRoute: ConsoleMerchantsRoute,
-  ConsoleReviewsRoute: ConsoleReviewsRoute,
-  ConsoleSettlementsRoute: ConsoleSettlementsRoute,
   ConsoleSubmissionsRoute: ConsoleSubmissionsRoute,
   ConsoleIndexRoute: ConsoleIndexRoute,
 }

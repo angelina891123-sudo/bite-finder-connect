@@ -1,14 +1,5 @@
 import { createFileRoute, Link, Outlet, redirect, useNavigate } from "@tanstack/react-router";
-import {
-  ClipboardList,
-  FileCheck2,
-  LayoutDashboard,
-  LogOut,
-  Receipt,
-  ShieldCheck,
-  Store,
-  Users,
-} from "lucide-react";
+import { ClipboardList, FileCheck2, LayoutDashboard, LogOut, Store, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -35,10 +26,8 @@ const NAV = [
   { to: "/console", label: "營運總覽", icon: LayoutDashboard, exact: true },
   { to: "/console/creators", label: "Foodie 管理", icon: Users, exact: false },
   { to: "/console/merchants", label: "商家管理", icon: Store, exact: false },
-  { to: "/console/reviews", label: "資格審核", icon: ShieldCheck, exact: false },
   { to: "/console/submissions", label: "Foodie 案件審核", icon: FileCheck2, exact: false },
   { to: "/console/campaigns", label: "案件與申請", icon: ClipboardList, exact: false },
-  { to: "/console/settlements", label: "結算對帳", icon: Receipt, exact: false },
 ] as const;
 
 function ConsoleLayout() {
