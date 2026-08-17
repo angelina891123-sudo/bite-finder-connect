@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -236,9 +236,17 @@ function MerchantBackoffice() {
   return (
     <div className="flex min-h-screen bg-muted/40">
       <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-background p-4 md:flex">
-        <div className="mb-6 px-2 text-lg font-extrabold">
-          肚肚 <span className="text-primary">店家後台</span>
-        </div>
+        <Link to="/" className="mb-6 flex items-center gap-2 px-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            🍽
+          </span>
+          <span className="leading-tight">
+            <span className="block text-lg font-extrabold">
+              肚肚 <span className="text-primary">dudoo</span>
+            </span>
+            <span className="block text-xs font-medium text-muted-foreground">店家後台</span>
+          </span>
+        </Link>
         <nav className="space-y-1">
           {MENU.map((m) => (
             <button
