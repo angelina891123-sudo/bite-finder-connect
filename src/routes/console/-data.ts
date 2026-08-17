@@ -102,8 +102,9 @@ export type FoodieRow = {
   created_at: string;
 };
 
-// settlements、submissions、submission_photos 是本分支新增的資料表，尚未反映在
-// 自動產生的 types.ts。重新產生型別後即可移除這層轉型。
+// 部分欄位與資料表尚未反映在自動產生的 types.ts：applications 的 material_caption /
+// material_media（後台直接新增）與審核狀態欄位、merchant_profiles 的黑名單欄位、
+// 以及 settlements 表。重新產生型別後即可移除這層轉型。
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const rawSupabase = supabase as any;
 
@@ -161,6 +162,17 @@ export type ApplicationRow = {
   creator_id: string;
   campaign_id: string;
   message: string | null;
+  submitted_at: string | null;
+  // 交付內容：由 Foodie 從官網填寫，營運後台與官網同源
+  material_caption: string | null;
+  material_media: string[] | null;
+  // 審核狀態：本分支新增。migration 套用前為 undefined，UI 會顯示提示
+  material_caption_prev: string | null;
+  selected_media: string[] | null;
+  caption_status: SubStatus | null;
+  media_status: SubStatus | null;
+  caption_reviewed_at: string | null;
+  media_reviewed_at: string | null;
   campaigns: { title: string; restaurant_name: string | null; merchant_id: string } | null;
 };
 
@@ -169,11 +181,10 @@ export function useApplications(enabled: boolean) {
     queryKey: ["console-applications"],
     enabled,
     queryFn: async () => {
-      const { data, error } = await supabase
+      // material_* 與審核狀態欄位不在自動產生的 types.ts 裡，因此走 rawSupabase 並取全部欄位
+      const { data, error } = await rawSupabase
         .from("applications")
-        .select(
-          "id,status,completed,completed_at,created_at,creator_id,campaign_id,message,campaigns(title,restaurant_name,merchant_id)",
-        )
+        .select("*,campaigns(title,restaurant_name,merchant_id)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as ApplicationRow[];
@@ -224,9 +235,6 @@ export type Settlement = {
   updated_at: string;
 };
 
-/** settlements 資料表尚未建立時，Postgres 會回傳 42P01。 */
-export const MISSING_TABLE = "42P01";
-
 export function useSettlements(enabled: boolean) {
   return useQuery({
     queryKey: ["console-settlements"],
@@ -251,65 +259,6 @@ export const SUB_LABEL: Record<SubStatus, string> = {
   revising: "修改中",
   approved: "已確稿",
 };
-
-export type Submission = {
-  id: string;
-  application_id: string;
-  copy_text: string | null;
-  copy_text_prev: string | null;
-  copy_status: SubStatus;
-  copy_submitted_at: string | null;
-  copy_reviewed_at: string | null;
-  photo_status: SubStatus;
-  photo_reviewed_at: string | null;
-  video_url: string | null;
-  review_note: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type SubmissionPhoto = {
-  id: string;
-  submission_id: string;
-  code: string | null;
-  url: string;
-  selected: boolean;
-  sort_order: number;
-  created_at: string;
-  updated_at: string;
-};
-
-export function useSubmissions(enabled: boolean) {
-  return useQuery({
-    queryKey: ["console-submissions"],
-    enabled,
-    retry: false,
-    queryFn: async () => {
-      const { data, error } = await rawSupabase
-        .from("submissions")
-        .select("*")
-        .order("updated_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as Submission[];
-    },
-  });
-}
-
-export function useSubmissionPhotos(enabled: boolean) {
-  return useQuery({
-    queryKey: ["console-submission-photos"],
-    enabled,
-    retry: false,
-    queryFn: async () => {
-      const { data, error } = await rawSupabase
-        .from("submission_photos")
-        .select("*")
-        .order("sort_order", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as SubmissionPhoto[];
-    },
-  });
-}
 
 /**
  * 逐行比對兩份文案，用於「比較差異」。
