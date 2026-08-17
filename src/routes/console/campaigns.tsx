@@ -104,7 +104,7 @@ function CampaignsAndApplications() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-[#3F2E1E]">案件與申請</h1>
+          <h1 className="text-xl font-bold text-[#3F2E1E]">案件與媒合管理</h1>
           <p className="mt-1 text-sm text-[#A08E7C]">跨商家檢視所有案件與 Foodie 申請</p>
         </div>
         <Input

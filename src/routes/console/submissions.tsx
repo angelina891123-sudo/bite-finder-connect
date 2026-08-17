@@ -207,7 +207,7 @@ function Submissions() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-xl font-bold text-[#3F2E1E]">Foodie 案件審核</h1>
+          <h1 className="text-xl font-bold text-[#3F2E1E]">Foodie 內容審核</h1>
           <p className="mt-1 text-sm text-[#A08E7C]">審核 Foodie 交付的文案與照片</p>
         </div>
         <Card className="border-amber-200 bg-amber-50">
@@ -233,7 +233,7 @@ function Submissions() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-xl font-bold text-[#3F2E1E]">Foodie 案件審核</h1>
+          <h1 className="text-xl font-bold text-[#3F2E1E]">Foodie 內容審核</h1>
           <p className="mt-1 text-sm text-[#A08E7C]">
             審核已核准媒合的交付內容，共 {reviewable.length} 筆
           </p>
@@ -296,7 +296,7 @@ function Submissions() {
                 {reviewable.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center text-[#A08E7C]">
-                      目前沒有已核准的媒合。請先到「案件與申請」核准 Foodie 的申請。
+                      目前沒有已核准的媒合。請先到「案件與媒合管理」核准 Foodie 的申請。
                     </TableCell>
                   </TableRow>
                 )}
