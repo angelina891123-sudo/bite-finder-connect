@@ -45,6 +45,35 @@ export function matchesTier(label: string, minFollowers: number) {
   return !!tier && minFollowers >= tier.min && minFollowers <= tier.max;
 }
 
+/**
+ * 素材審核狀態。上傳成果連結／成效截圖前，須先經管理員、再經商家兩階段審核。
+ * 對應 20260817140000_material_review.sql 的 applications.material_status。
+ */
+export type MaterialStatus =
+  | "draft"
+  | "admin_pending"
+  | "admin_rejected"
+  | "merchant_pending"
+  | "merchant_rejected"
+  | "approved";
+
+export const MATERIAL_LABEL: Record<
+  MaterialStatus,
+  { label: string; variant: "default" | "secondary" | "destructive" }
+> = {
+  draft: { label: "尚未送審", variant: "secondary" },
+  admin_pending: { label: "平台審核中", variant: "secondary" },
+  admin_rejected: { label: "平台退件", variant: "destructive" },
+  merchant_pending: { label: "商家審核中", variant: "secondary" },
+  merchant_rejected: { label: "商家退件", variant: "destructive" },
+  approved: { label: "素材已通過", variant: "default" },
+};
+
+/** Foodie 可編輯並（重新）送審的狀態。 */
+export function canEditMaterial(s: MaterialStatus) {
+  return s === "draft" || s === "admin_rejected" || s === "merchant_rejected";
+}
+
 export const APPLIED_LABEL: Record<string, string> = {
   pending: "審核中",
   approved: "已核准",

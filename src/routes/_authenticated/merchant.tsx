@@ -22,6 +22,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth, REGIONS, COLLAB_TYPES } from "@/lib/auth";
 import { uploadCampaignPhotos } from "@/lib/campaign-photos";
 import { FOOD_TYPES } from "@/lib/campaign";
+import { TagGroup } from "@/components/form-fields";
+import { MaterialReviewList } from "@/components/MaterialReviewList";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,6 +57,7 @@ const MENU = [
   { key: "menu", label: "商品／菜單", icon: UtensilsCrossed },
   { key: "members", label: "會員管理", icon: Users2 },
   { key: "foodie", label: "Foodie 案件媒合", icon: Megaphone },
+  { key: "materials", label: "素材審核", icon: Check },
   { key: "performance", label: "合作成效", icon: TrendingUp },
   { key: "settings", label: "店家設定", icon: Settings },
 ] as const;
@@ -67,7 +70,7 @@ type Campaign = {
   description: string | null;
   restaurant_name: string | null;
   region: string;
-  collab_type: string;
+  collab_types: string[];
   reward: string;
   slots: number;
   min_followers: number;
@@ -92,6 +95,10 @@ type Application = {
   visit_code?: string | null;
   visited?: boolean | null;
   result_images?: string[] | null;
+  material_status?: string | null;
+  material_caption?: string | null;
+  material_media?: string[] | null;
+  material_submitted_at?: string | null;
 };
 
 function MerchantBackoffice() {
@@ -211,6 +218,33 @@ function MerchantBackoffice() {
     setRedeemTarget(null);
     void qc.invalidateQueries({ queryKey: ["merchant-applications", user?.id] });
   };
+
+  // 第二階段審核：僅處理管理員已放行（merchant_pending）的素材。
+  const reviewMaterial = async (id: string, pass: boolean, note: string) => {
+    if (!pass && !note.trim()) {
+      toast.error("退件必須填寫原因");
+      return;
+    }
+    const { error } = await supabase
+      .from("applications")
+      .update({
+        material_status: pass ? "approved" : "merchant_rejected",
+        material_note: pass ? null : note.trim(),
+      })
+      .eq("id", id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(pass ? "素材已通過，Foodie 可上傳成果" : "已退件");
+    void qc.invalidateQueries({ queryKey: ["merchant-applications", user?.id] });
+  };
+
+  const pendingMaterials = applications.filter(
+    (a) =>
+      a.material_status === "merchant_pending" &&
+      campaigns.some((c) => c.id === a.campaign_id),
+  );
 
   const signOut = async () => {
     await qc.cancelQueries();
@@ -362,7 +396,7 @@ function MerchantBackoffice() {
                         </div>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {c.region}・{c.collab_type}・粉絲門檻 {c.min_followers.toLocaleString()}・名額 {c.slots}
+                        {c.region}・{c.collab_types.join("、")}・粉絲門檻 {c.min_followers.toLocaleString()}・名額 {c.slots}
                         {c.deadline ? `・截止 ${c.deadline}` : ""}
                       </p>
                     </CardHeader>
@@ -449,6 +483,27 @@ function MerchantBackoffice() {
             </div>
             )}
           </>
+        ) : section === "materials" ? (
+          <div>
+            <h1 className="mb-1 text-2xl font-bold">素材審核</h1>
+            <p className="mb-6 text-sm text-muted-foreground">
+              Foodie 送出、且已通過平台初審的文案與素材。通過後 Foodie 才能上傳成果連結。
+            </p>
+            <MaterialReviewList
+              rows={pendingMaterials.map((a) => ({
+                id: a.id,
+                material_caption: a.material_caption ?? null,
+                material_media: a.material_media ?? null,
+                material_submitted_at: a.material_submitted_at ?? null,
+                campaigns: (() => {
+                  const c = campaigns.find((x) => x.id === a.campaign_id);
+                  return c ? { title: c.title, restaurant_name: c.restaurant_name } : null;
+                })(),
+              }))}
+              onReview={reviewMaterial}
+              emptyText="目前沒有待審核的素材。通過平台初審後會出現在這裡。"
+            />
+          </div>
         ) : section === "performance" ? (
           <PerformanceSection campaigns={campaigns} applications={applications} creators={creators} />
         ) : (
@@ -1030,7 +1085,7 @@ const DEFAULT_FORM = {
   // Numeric fields are held as strings so the input can be cleared while typing;
   // they're converted back to numbers on submit.
   min_followers: "1000",
-  collab_type: COLLAB_TYPES[0]!,
+  collab_types: [COLLAB_TYPES[0]!] as string[],
   food_type: FOOD_TYPES[0]!,
   reward: "",
   slots: "3",
@@ -1045,7 +1100,7 @@ function campaignToForm(c: Campaign): typeof DEFAULT_FORM {
     description: c.description ?? "",
     region: c.region,
     min_followers: String(c.min_followers),
-    collab_type: c.collab_type,
+    collab_types: c.collab_types ?? [],
     food_type: c.food_type ?? FOOD_TYPES[0]!,
     reward: c.reward,
     slots: String(c.slots),
@@ -1128,7 +1183,7 @@ function CampaignFormDialog({
         description: form.description || null,
         region: form.region,
         min_followers: Number(form.min_followers),
-        collab_type: form.collab_type,
+        collab_types: form.collab_types,
         food_type: form.food_type,
         reward: form.reward,
         slots: Number(form.slots),
@@ -1180,17 +1235,22 @@ function CampaignFormDialog({
                 ))}
               </select>
             </div>
-            <div className="space-y-1.5">
-              <Label>合作類型</Label>
-              <select
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={form.collab_type}
-                onChange={(e) => setForm({ ...form, collab_type: e.target.value })}
-              >
-                {COLLAB_TYPES.map((r) => (
-                  <option key={r}>{r}</option>
-                ))}
-              </select>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>
+                合作類型 <span className="text-xs font-normal text-muted-foreground">可複選</span>
+              </Label>
+              <TagGroup
+                options={[...COLLAB_TYPES]}
+                selected={form.collab_types}
+                onToggle={(v) =>
+                  setForm({
+                    ...form,
+                    collab_types: form.collab_types.includes(v)
+                      ? form.collab_types.filter((t) => t !== v)
+                      : [...form.collab_types, v],
+                  })
+                }
+              />
             </div>
             <div className="space-y-1.5">
               <Label>食物類型</Label>

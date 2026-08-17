@@ -4,13 +4,21 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { isExpired, todayISO } from "@/lib/campaign";
+import {
+  canEditMaterial,
+  isExpired,
+  MATERIAL_LABEL,
+  todayISO,
+  type MaterialStatus,
+} from "@/lib/campaign";
 import { SiteHeader } from "@/components/SiteHeader";
 import { FoodieProfileForm } from "@/components/FoodieProfileForm";
 import { CampaignDetailDialog, type CampaignDetail } from "@/components/CampaignDetailDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -49,6 +57,11 @@ type Row = {
   visited?: boolean | null;
   // 成效截圖，於 20260814140000 migration 新增。
   result_images?: string[] | null;
+  // 素材審核，於 20260817140000_material_review.sql 新增。
+  material_status?: MaterialStatus | null;
+  material_caption?: string | null;
+  material_media?: string[] | null;
+  material_note?: string | null;
   campaigns: CampaignDetail | null;
 };
 
@@ -67,6 +80,8 @@ function MyApplications() {
   const [cancelTarget, setCancelTarget] = useState<Row | null>(null);
   const [detail, setDetail] = useState<CampaignDetail | null>(null);
   const [shotTarget, setShotTarget] = useState<Row | null>(null);
+  const [matTarget, setMatTarget] = useState<Row | null>(null);
+  const [caption, setCaption] = useState("");
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const today = todayISO();
@@ -78,7 +93,7 @@ function MyApplications() {
       const { data, error } = await supabase
         .from("applications")
         .select(
-          "*,campaigns(id,title,description,restaurant_name,region,reward,collab_type,min_followers,slots,deadline,photos)",
+          "*,campaigns(id,title,description,restaurant_name,region,reward,collab_types,min_followers,slots,deadline,photos)",
         )
         .eq("creator_id", user!.id)
         .order("created_at", { ascending: false });
@@ -152,6 +167,63 @@ function MyApplications() {
     setUploading(false);
   };
 
+  const uploadMaterials = async (row: Row, files: FileList | null) => {
+    if (!files || files.length === 0 || !user) return;
+    setUploading(true);
+    const urls: string[] = [];
+    for (const file of Array.from(files)) {
+      const ext = file.name.split(".").pop() ?? "bin";
+      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from("campaign-materials").upload(path, file);
+      if (error) {
+        toast.error(`${file.name} 上傳失敗：${error.message}`);
+        continue;
+      }
+      const { data } = await supabase.storage
+        .from("campaign-materials")
+        .createSignedUrl(path, 60 * 60 * 24 * 365 * 5);
+      if (data?.signedUrl) urls.push(data.signedUrl);
+    }
+    if (urls.length > 0) {
+      const next = [...(row.material_media ?? []), ...urls];
+      const { error } = await supabase
+        .from("applications")
+        .update({ material_media: next })
+        .eq("id", row.id);
+      if (error) toast.error(error.message);
+      else {
+        setMatTarget((t) => (t ? { ...t, material_media: next } : t));
+        void refresh();
+      }
+    }
+    setUploading(false);
+  };
+
+  const submitMaterials = async () => {
+    if (!matTarget) return;
+    if (!caption.trim()) {
+      toast.error("請填寫文案");
+      return;
+    }
+    if ((matTarget.material_media ?? []).length === 0) {
+      toast.error("請至少上傳一個圖片或影片素材");
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase
+      .from("applications")
+      .update({ material_caption: caption.trim(), material_status: "admin_pending" })
+      .eq("id", matTarget.id);
+    setBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("素材已送出審核，將由平台先行審核");
+    setMatTarget(null);
+    void refresh();
+  };
+
   const cancelApplication = async () => {
     if (!cancelTarget) return;
     setBusy(true);
@@ -215,6 +287,7 @@ function MyApplications() {
           <div className="space-y-3">
             {rows.map((r) => {
               const s = statusOf(r);
+              const matStatus = (r.material_status ?? "draft") as MaterialStatus;
               return (
                 <Card key={r.id}>
                   <CardHeader className="pb-2">
@@ -223,7 +296,7 @@ function MyApplications() {
                       <Badge variant={s.variant}>{s.label}</Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {r.campaigns?.region}・{r.campaigns?.collab_type}・{r.campaigns?.reward}
+                      {r.campaigns?.region}・{r.campaigns?.collab_types.join("、")}・{r.campaigns?.reward}
                       {r.campaigns?.deadline ? `・截止日 ${r.campaigns.deadline}` : "・無截止日"}
                       {isExpired(r.campaigns?.deadline, today) && "（已截止）"}
                     </p>
@@ -262,6 +335,38 @@ function MyApplications() {
                         <span className="ml-1">尚未上傳</span>
                       )}
                     </p>
+                    {r.status === "approved" && (
+                      <div className="rounded-lg border border-border bg-background p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-xs font-semibold">
+                            素材審核
+                            <span className="ml-1 font-normal text-muted-foreground">
+                              文案與圖片／影片，需通過平台與商家審核才能上傳成果
+                            </span>
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={MATERIAL_LABEL[matStatus].variant}>
+                              {MATERIAL_LABEL[matStatus].label}
+                            </Badge>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setCaption(r.material_caption ?? "");
+                                setMatTarget(r);
+                              }}
+                            >
+                              {canEditMaterial(matStatus) ? "上傳／送審素材" : "查看素材"}
+                            </Button>
+                          </div>
+                        </div>
+                        {r.material_note && (
+                          <p className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+                            退件原因：{r.material_note}
+                          </p>
+                        )}
+                      </div>
+                    )}
                     {r.completed && (
                       <div className="rounded-lg border border-border bg-background p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -305,7 +410,7 @@ function MyApplications() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={r.status !== "approved"}
+                        disabled={r.status !== "approved" || matStatus !== "approved"}
                         onClick={() => {
                           setUrl(r.submission_url ?? "");
                           setUploadTarget(r);
@@ -321,6 +426,11 @@ function MyApplications() {
                     </div>
                     {r.status === "pending" && (
                       <p className="text-xs text-muted-foreground">案件核准後即可上傳成果連結。</p>
+                    )}
+                    {r.status === "approved" && matStatus !== "approved" && (
+                      <p className="text-xs text-muted-foreground">
+                        素材通過平台與商家審核後，才能上傳成果連結與成效截圖。
+                      </p>
                     )}
                   </CardContent>
                 </Card>
@@ -345,6 +455,91 @@ function MyApplications() {
           關閉
         </Button>
       </CampaignDetailDialog>
+
+      <Dialog open={matTarget !== null} onOpenChange={(o) => !o && setMatTarget(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>素材審核</DialogTitle>
+            <DialogDescription>
+              「{matTarget?.campaigns?.title}」的文案與圖片／影片素材。送出後會先由平台審核，
+              通過後再交由商家審核。
+            </DialogDescription>
+          </DialogHeader>
+
+          {(() => {
+            const st = (matTarget?.material_status ?? "draft") as MaterialStatus;
+            const editable = canEditMaterial(st);
+            return (
+              <>
+                {matTarget?.material_note && (
+                  <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                    退件原因：{matTarget.material_note}
+                  </p>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label>文案</Label>
+                  <Textarea
+                    rows={5}
+                    value={caption}
+                    onChange={(e) => setCaption(e.target.value)}
+                    placeholder="貼文預計搭配的文字內容…"
+                    disabled={!editable}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>圖片／影片素材</Label>
+                  {matTarget?.material_media?.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {matTarget.material_media.map((src) => (
+                        <a
+                          key={src}
+                          href={src}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-md border border-border px-3 py-2 text-xs text-primary underline"
+                        >
+                          檢視素材
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">尚未上傳。</p>
+                  )}
+                  {editable && (
+                    <label className="flex cursor-pointer items-center justify-center rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground hover:bg-accent">
+                      {uploading ? "上傳中…" : "點此選擇圖片或影片"}
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        multiple
+                        className="hidden"
+                        disabled={uploading}
+                        onChange={(e) => {
+                          if (matTarget) void uploadMaterials(matTarget, e.target.files);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setMatTarget(null)}>
+                    關閉
+                  </Button>
+                  {editable && (
+                    <Button onClick={submitMaterials} disabled={busy || uploading}>
+                      送出審核
+                    </Button>
+                  )}
+                </DialogFooter>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={shotTarget !== null} onOpenChange={(o) => !o && setShotTarget(null)}>
         <DialogContent>

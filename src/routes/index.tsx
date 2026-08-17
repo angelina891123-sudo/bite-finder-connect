@@ -52,7 +52,7 @@ type Campaign = {
   restaurant_name: string | null;
   region: string;
   min_followers: number;
-  collab_type: string;
+  collab_types: string[];
   reward: string;
   slots: number;
   deadline: string | null;
@@ -163,11 +163,12 @@ function Index() {
         (filters.region.length === 0 || filters.region.includes(c.region)) &&
         (filters.food.length === 0 ||
           (!!c.food_type && filters.food.includes(c.food_type))) &&
-        (filters.collab.length === 0 || filters.collab.includes(c.collab_type)) &&
+        (filters.collab.length === 0 ||
+          c.collab_types.some((t) => filters.collab.includes(t))) &&
         (filters.followers.length === 0 ||
           filters.followers.some((t) => matchesTier(t, c.min_followers))) &&
         (keyword.trim() === "" ||
-          `${c.title}${c.restaurant_name ?? ""}${c.collab_type}`.toLowerCase().includes(keyword.toLowerCase())),
+          `${c.title}${c.restaurant_name ?? ""}${c.collab_types.join("")}`.toLowerCase().includes(keyword.toLowerCase())),
     )
     // 已截止的案件仍然看得到，但排到最後且不能申請。
     .sort((a, b) => Number(isExpired(a.deadline, today)) - Number(isExpired(b.deadline, today)));
@@ -341,7 +342,11 @@ function Index() {
                 <CardHeader>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <MapPin className="h-3.5 w-3.5" /> {c.region}
-                    <Badge variant="secondary">{c.collab_type}</Badge>
+                    {c.collab_types.map((t) => (
+                      <Badge key={t} variant="secondary">
+                        {t}
+                      </Badge>
+                    ))}
                     {expired && <Badge variant="destructive">已截止</Badge>}
                     {applied && <Badge>已申請・{APPLIED_LABEL[applied] ?? applied}</Badge>}
                   </div>

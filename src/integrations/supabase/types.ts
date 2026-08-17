@@ -24,6 +24,12 @@ export type Database = {
           creator_id: string
           id: string
           message: string | null
+          material_status: string
+          material_caption: string | null
+          material_media: string[]
+          material_note: string | null
+          material_submitted_at: string | null
+          material_reviewed_at: string | null
           status: Database["public"]["Enums"]["application_status"]
           submission_url: string | null
           submitted_at: string | null
@@ -41,6 +47,12 @@ export type Database = {
           creator_id: string
           id?: string
           message?: string | null
+          material_status?: string
+          material_caption?: string | null
+          material_media?: string[]
+          material_note?: string | null
+          material_submitted_at?: string | null
+          material_reviewed_at?: string | null
           status?: Database["public"]["Enums"]["application_status"]
           submission_url?: string | null
           submitted_at?: string | null
@@ -58,6 +70,12 @@ export type Database = {
           creator_id?: string
           id?: string
           message?: string | null
+          material_status?: string
+          material_caption?: string | null
+          material_media?: string[]
+          material_note?: string | null
+          material_submitted_at?: string | null
+          material_reviewed_at?: string | null
           status?: Database["public"]["Enums"]["application_status"]
           submission_url?: string | null
           submitted_at?: string | null
@@ -78,7 +96,7 @@ export type Database = {
       }
       campaigns: {
         Row: {
-          collab_type: string
+          collab_types: string[]
           cover_url: string | null
           created_at: string
           deadline: string | null
@@ -97,7 +115,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          collab_type: string
+          collab_types: string[]
           cover_url?: string | null
           created_at?: string
           deadline?: string | null
@@ -116,7 +134,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          collab_type?: string
+          collab_types?: string[]
           cover_url?: string | null
           created_at?: string
           deadline?: string | null
