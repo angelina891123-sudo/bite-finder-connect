@@ -54,6 +54,8 @@ type Campaign = {
   address: string | null;
   min_followers: number;
   collab_types: string[];
+  food_types: string[] | null;
+  primary_food_type: string | null;
   reward: string;
   slots: number;
   deadline: string | null;
@@ -78,7 +80,7 @@ function Index() {
       const { data, error } = await supabase
         .from("campaigns")
         .select(
-          "id,title,description,video_direction,video_must_include,video_must_avoid,copy_must_include,copy_must_avoid,hashtags,reference_link,notes,restaurant_name,region,address,min_followers,collab_types,reward,slots,deadline,photos",
+          "id,title,description,video_direction,video_must_include,video_must_avoid,copy_must_include,copy_must_avoid,hashtags,reference_link,notes,restaurant_name,region,address,min_followers,collab_types,food_types,primary_food_type,reward,slots,deadline,photos",
         )
         .eq("status", "published")
         .order("created_at", { ascending: false });

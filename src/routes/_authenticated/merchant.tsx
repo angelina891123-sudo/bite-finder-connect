@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, REGIONS, COLLAB_TYPES } from "@/lib/auth";
+import { FOOD_TYPES, MAX_FOOD_TYPES } from "@/lib/campaign";
 import { uploadCampaignPhotos } from "@/lib/campaign-photos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,6 +77,8 @@ type Campaign = {
   region: string;
   address: string | null;
   collab_types: string[];
+  food_types: string[];
+  primary_food_type: string | null;
   reward: string;
   slots: number;
   min_followers: number;
@@ -1041,6 +1044,7 @@ const DEFAULT_FORM = {
   // they're converted back to numbers on submit.
   min_followers: "1000",
   collab_types: [COLLAB_TYPES[0]!] as string[],
+  food_types: [] as string[],
   reward: "",
   slots: "3",
   deadline: "",
@@ -1065,6 +1069,7 @@ function campaignToForm(c: Campaign): typeof DEFAULT_FORM {
     address: c.address ?? "",
     min_followers: String(c.min_followers),
     collab_types: c.collab_types,
+    food_types: c.food_types,
     reward: c.reward,
     slots: String(c.slots),
     deadline: c.deadline ?? "",
@@ -1133,6 +1138,20 @@ function CampaignFormDialog({
     setExistingPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // 選擇順序即代表優先序：第一個被選的 value 在送出時成為 primary_food_type，
+  // 取消第一個選項後陣列自然往前遞補，不需要另外追蹤 primary。
+  const toggleFoodType = (value: string) => {
+    const selected = form.food_types.includes(value);
+    if (!selected && form.food_types.length >= MAX_FOOD_TYPES) {
+      toast.error(`最多選擇 ${MAX_FOOD_TYPES} 個 Food Type`);
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      food_types: selected ? f.food_types.filter((v) => v !== value) : [...f.food_types, value],
+    }));
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (form.deadline && form.deadline < minLaunchDateISO()) {
@@ -1141,6 +1160,10 @@ function CampaignFormDialog({
     }
     if (form.collab_types.length === 0) {
       toast.error("請至少選擇一個合作類型");
+      return;
+    }
+    if (form.food_types.length === 0) {
+      toast.error("請至少選擇一個 Food Type");
       return;
     }
     setBusy(true);
@@ -1163,6 +1186,8 @@ function CampaignFormDialog({
         address: form.address.trim() || null,
         min_followers: Number(form.min_followers),
         collab_types: form.collab_types,
+        food_types: form.food_types,
+        primary_food_type: form.food_types[0] ?? null,
         reward: form.reward,
         slots: Number(form.slots),
         deadline: form.deadline || null,
@@ -1226,6 +1251,34 @@ function CampaignFormDialog({
                 );
               })}
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Food Type 餐飲類型</Label>
+            <div className="flex flex-wrap gap-2">
+              {FOOD_TYPES.map((t) => {
+                const selected = form.food_types.includes(t.value);
+                const atMax = !selected && form.food_types.length >= MAX_FOOD_TYPES;
+                return (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => toggleFoodType(t.value)}
+                    className={`rounded-full border px-3 py-1 text-sm transition-colors ${
+                      selected
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : atMax
+                          ? "border-input text-muted-foreground opacity-50"
+                          : "border-input text-foreground hover:bg-accent"
+                    }`}
+                  >
+                    {t.label} {t.englishLabel}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              最多選擇 {MAX_FOOD_TYPES} 個，第一個選擇的類型會作為主要分類
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

@@ -74,7 +74,7 @@ function MyApplications() {
       const { data, error } = await supabase
         .from("applications")
         .select(
-          "*,campaigns(id,title,description,video_direction,video_must_include,video_must_avoid,copy_must_include,copy_must_avoid,hashtags,reference_link,notes,restaurant_name,region,address,reward,collab_types,min_followers,slots,deadline,photos)",
+          "*,campaigns(id,title,description,video_direction,video_must_include,video_must_avoid,copy_must_include,copy_must_avoid,hashtags,reference_link,notes,restaurant_name,region,address,reward,collab_types,food_types,primary_food_type,min_followers,slots,deadline,photos)",
         )
         .eq("creator_id", user!.id)
         .order("created_at", { ascending: false });

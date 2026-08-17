@@ -1,4 +1,5 @@
 import { CalendarDays, Gift, MapPin, Users, Store, Clapperboard } from "lucide-react";
+import { FOOD_TYPES } from "@/lib/campaign";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -26,6 +27,8 @@ export type CampaignDetail = {
   region: string;
   address: string | null;
   collab_types: string[];
+  food_types: string[] | null;
+  primary_food_type: string | null;
   reward: string;
   min_followers: number;
   slots: number;
@@ -122,6 +125,23 @@ export function CampaignDetailDialog({
           />
           <Row icon={CalendarDays} label="預計上線日期" value={campaign?.deadline ?? "未提供"} />
         </div>
+
+        {campaign?.food_types && campaign.food_types.length > 0 && (
+          <div>
+            <p className="mb-2 text-sm font-semibold">Food Type</p>
+            <div className="flex flex-wrap gap-1.5">
+              {campaign.food_types.map((v) => {
+                const ft = FOOD_TYPES.find((f) => f.value === v);
+                if (!ft) return null;
+                return (
+                  <Badge key={v} variant="secondary">
+                    {ft.emoji} {ft.label}
+                  </Badge>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {campaign?.address?.trim() && (
           <div>

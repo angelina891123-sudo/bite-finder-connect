@@ -83,12 +83,14 @@ export type Database = {
           created_at: string
           deadline: string | null
           description: string | null
+          food_types: string[]
           hashtags: string[]
           id: string
           merchant_id: string
           min_followers: number
           notes: string | null
           photos: string[]
+          primary_food_type: string | null
           reference_link: string | null
           region: string
           restaurant_name: string | null
@@ -110,12 +112,14 @@ export type Database = {
           created_at?: string
           deadline?: string | null
           description?: string | null
+          food_types?: string[]
           hashtags?: string[]
           id?: string
           merchant_id: string
           min_followers?: number
           notes?: string | null
           photos?: string[]
+          primary_food_type?: string | null
           reference_link?: string | null
           region: string
           restaurant_name?: string | null
@@ -137,12 +141,14 @@ export type Database = {
           created_at?: string
           deadline?: string | null
           description?: string | null
+          food_types?: string[]
           hashtags?: string[]
           id?: string
           merchant_id?: string
           min_followers?: number
           notes?: string | null
           photos?: string[]
+          primary_food_type?: string | null
           reference_link?: string | null
           region?: string
           restaurant_name?: string | null
