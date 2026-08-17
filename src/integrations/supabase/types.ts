@@ -316,6 +316,48 @@ export type Database = {
         }
         Relationships: []
       }
+      merchant_subscriptions: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          id: string
+          merchant_id: string
+          monthly_case_limit: number | null
+          payment_status: string
+          plan_type: Database["public"]["Enums"]["subscription_plan_type"]
+          price: number | null
+          started_at: string
+          status: Database["public"]["Enums"]["foodie_subscription_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          merchant_id: string
+          monthly_case_limit?: number | null
+          payment_status?: string
+          plan_type: Database["public"]["Enums"]["subscription_plan_type"]
+          price?: number | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["foodie_subscription_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          merchant_id?: string
+          monthly_case_limit?: number | null
+          payment_status?: string
+          plan_type?: Database["public"]["Enums"]["subscription_plan_type"]
+          price?: number | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["foodie_subscription_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           bio: string | null
@@ -395,6 +437,7 @@ export type Database = {
       campaign_status: "draft" | "published" | "closed"
       foodie_plan: "basic" | "pro" | "enterprise"
       foodie_subscription_status: "inactive" | "active" | "expired"
+      subscription_plan_type: "basic" | "pro" | "enterprise"
       verification_status: "pending" | "approved" | "rejected"
     }
     CompositeTypes: {
@@ -528,6 +571,7 @@ export const Constants = {
       campaign_status: ["draft", "published", "closed"],
       foodie_plan: ["basic", "pro", "enterprise"],
       foodie_subscription_status: ["inactive", "active", "expired"],
+      subscription_plan_type: ["basic", "pro", "enterprise"],
       verification_status: ["pending", "approved", "rejected"],
     },
   },

@@ -10,6 +10,14 @@ export function isExpired(deadline: string | null | undefined, today = todayISO(
   return !!deadline && deadline < today;
 }
 
+/** 本月第一天 00:00 的 ISO timestamp，用來計算方案的每月案件額度用量。 */
+export function startOfMonthISO() {
+  const d = new Date();
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
 export const APPLIED_LABEL: Record<string, string> = {
   pending: "審核中",
   approved: "已核准",

@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, REGIONS, COLLAB_TYPES } from "@/lib/auth";
-import { FOOD_TYPES, MAX_FOOD_TYPES } from "@/lib/campaign";
+import { FOOD_TYPES, MAX_FOOD_TYPES, startOfMonthISO } from "@/lib/campaign";
 import { uploadCampaignPhotos } from "@/lib/campaign-photos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -115,6 +115,7 @@ function MerchantBackoffice() {
   const [redeemTarget, setRedeemTarget] = useState<Application | null>(null);
   const [code, setCode] = useState("");
   const [redeeming, setRedeeming] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
 
   const { data: profile } = useQuery({
     queryKey: ["merchant-profile", user?.id],
@@ -122,25 +123,49 @@ function MerchantBackoffice() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("merchant_profiles")
-        .select("store_name,foodie_subscription_status,foodie_plan")
+        .select("store_name")
         .eq("user_id", user!.id)
         .maybeSingle();
       if (error) throw error;
       return data;
     },
   });
-  const subscriptionStatus = profile?.foodie_subscription_status ?? "inactive";
-  const hasFoodiePlan = subscriptionStatus === "active";
   const storeName = profile?.store_name?.trim() || "我的店家";
+
+  // Single source of truth for plan state — append-only history table, so the
+  // "current" plan is always the merchant's most recently created row.
+  const { data: subscription } = useQuery({
+    queryKey: ["merchant-subscription", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("merchant_subscriptions")
+        .select("*")
+        .eq("merchant_id", user!.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const subscriptionStatus = subscription?.status ?? "inactive";
+  const hasFoodiePlan = subscriptionStatus === "active";
+  const currentPlanType = subscription?.plan_type ?? null;
+  const monthlyCaseLimit = subscription?.monthly_case_limit ?? null;
 
   const activateFoodiePlan = async () => {
     if (!user || !checkoutPlan) return;
-    const { error } = await supabase
-      .from("merchant_profiles")
-      .update({ foodie_subscription_status: "active", foodie_plan: checkoutPlan.id })
-      .eq("user_id", user.id);
+    const { error } = await supabase.from("merchant_subscriptions").insert({
+      merchant_id: user.id,
+      plan_type: checkoutPlan.id,
+      status: "active",
+      price: checkoutPlan.price,
+      monthly_case_limit: checkoutPlan.monthlyCaseLimit,
+      payment_status: "demo_paid",
+    });
     if (error) throw error;
-    void qc.invalidateQueries({ queryKey: ["merchant-profile", user.id] });
+    void qc.invalidateQueries({ queryKey: ["merchant-subscription", user.id] });
   };
 
   const { data: campaigns = [] } = useQuery({
@@ -156,6 +181,8 @@ function MerchantBackoffice() {
       return (data ?? []) as Campaign[];
     },
   });
+  const usedThisMonth = campaigns.filter((c) => c.created_at >= startOfMonthISO()).length;
+  const atCaseLimit = hasFoodiePlan && monthlyCaseLimit != null && usedThisMonth >= monthlyCaseLimit;
 
   const { data: applications = [] } = useQuery({
     queryKey: ["merchant-applications", user?.id],
@@ -317,7 +344,11 @@ function MerchantBackoffice() {
             }}
           />
         ) : showPlans ? (
-          <FoodiePlansPage onBack={() => setShowPlans(false)} onSelectPlan={setCheckoutPlan} />
+          <FoodiePlansPage
+            onBack={() => setShowPlans(false)}
+            onSelectPlan={setCheckoutPlan}
+            onContactSales={() => setContactOpen(true)}
+          />
         ) : section === "foodie" ? (
           <>
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -328,20 +359,29 @@ function MerchantBackoffice() {
                 <div>
                   <h1 className="text-2xl font-bold">{storeName}</h1>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
-                    <FoodiePlanBadge plan={profile?.foodie_plan ?? null} status={subscriptionStatus} />
+                    <FoodiePlanBadge plan={currentPlanType} status={subscriptionStatus} />
+                    {hasFoodiePlan && monthlyCaseLimit != null && (
+                      <Badge variant="outline" className="border-transparent bg-muted text-muted-foreground">
+                        {usedThisMonth} / {monthlyCaseLimit} 案件
+                      </Badge>
+                    )}
                     <p className="text-sm text-muted-foreground">
                       上架中案件 {active} 件・待審申請 {pending} 件
                     </p>
                   </div>
                 </div>
               </div>
-              {hasFoodiePlan ? (
-                <Button onClick={() => setOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" /> 上架媒合案件
-                </Button>
-              ) : (
+              {!hasFoodiePlan ? (
                 <Button disabled>
                   <Lock className="mr-2 h-4 w-4" /> 上架媒合案件
+                </Button>
+              ) : atCaseLimit ? (
+                <Button disabled>
+                  <Lock className="mr-2 h-4 w-4" /> 上架媒合案件
+                </Button>
+              ) : (
+                <Button onClick={() => setOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" /> 上架媒合案件
                 </Button>
               )}
             </div>
@@ -350,6 +390,14 @@ function MerchantBackoffice() {
               <FoodiePlanUpsellCard onViewPlans={() => setShowPlans(true)} />
             ) : (
             <div className="grid gap-4 lg:grid-cols-2">
+              {atCaseLimit && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-destructive/40 bg-destructive/5 p-4 text-sm lg:col-span-2">
+                  <span>本月案件額度已使用完畢</span>
+                  <Button size="sm" variant="outline" onClick={() => setShowPlans(true)}>
+                    查看其他方案
+                  </Button>
+                </div>
+              )}
               {campaigns.length === 0 && (
                 <div className="rounded-lg border border-dashed p-10 text-center lg:col-span-2">
                   <p className="font-semibold">尚未上架任何案件</p>
@@ -486,6 +534,8 @@ function MerchantBackoffice() {
         }}
         userId={user?.id ?? ""}
         campaign={editingCampaign}
+        monthlyCaseLimit={monthlyCaseLimit}
+        usedThisMonth={usedThisMonth}
       />
 
       <Dialog open={redeemTarget !== null} onOpenChange={(o) => !o && setRedeemTarget(null)}>
@@ -515,6 +565,8 @@ function MerchantBackoffice() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <EnterpriseContactDialog open={contactOpen} onOpenChange={setContactOpen} />
     </div>
   );
 }
@@ -553,7 +605,11 @@ type FoodiePlan = {
   id: "basic" | "pro" | "enterprise";
   name: string;
   tagline: string;
-  price: string;
+  /** 月費（NTD）；enterprise 為客製報價，未定案前不用假數字，故為 null。 */
+  price: number | null;
+  priceLabel: string;
+  /** 每月可建立的案件數；enterprise 額度客製，故為 null。 */
+  monthlyCaseLimit: number | null;
   features: string[];
   cta: string;
   highlighted?: boolean;
@@ -563,27 +619,42 @@ const FOODIE_PLANS: FoodiePlan[] = [
   {
     id: "basic",
     name: "Basic",
-    tagline: "適合首次嘗試 Foodie 合作的店家",
-    price: "NT$ X,XXX",
-    features: ["可建立 5 個媒合案件", "基礎創作者媒合", "查看創作者基本資料", "案件進度管理"],
-    cta: "選擇Basic方案",
+    tagline: "剛開始嘗試創作者合作的店家",
+    price: 750,
+    priceLabel: "NT$750 / 月",
+    monthlyCaseLimit: 5,
+    features: ["每月可建立 5 個媒合案件", "基礎創作者媒合", "查看創作者基本資料", "案件進度管理", "合作成效紀錄"],
+    cta: "選擇 Basic",
   },
   {
     id: "pro",
     name: "Pro",
-    tagline: "適合希望持續增加社群曝光的店家",
-    price: "NT$ X,XXX",
-    features: ["可建立 15 個媒合案件", "更多創作者媒合", "查看完整創作者資料", "案件進度管理", "合作成效紀錄"],
-    cta: "選擇Pro方案",
+    tagline: "需要穩定進行創作者合作與社群曝光的店家",
+    price: 1999,
+    priceLabel: "NT$1,999 / 月",
+    monthlyCaseLimit: 15,
+    features: ["每月可建立 15 個媒合案件", "基礎創作者媒合", "查看創作者基本資料", "案件進度管理", "合作成效紀錄"],
+    cta: "選擇 Pro",
     highlighted: true,
   },
   {
     id: "enterprise",
     name: "Enterprise",
-    tagline: "適合有大量創作者合作需求的品牌",
-    price: "NT$ X,XXX",
-    features: ["更多案件額度", "大量創作者媒合", "完整創作者資料", "案件進度管理", "合作成效紀錄", "專人協助"],
-    cta: "聯繫專人",
+    tagline: "有大量創作者合作需求，並需要完整行銷服務的品牌",
+    price: null,
+    priceLabel: "客製報價",
+    monthlyCaseLimit: null,
+    features: [
+      "更多媒合案件額度",
+      "創作者媒合",
+      "查看創作者資料",
+      "案件進度管理",
+      "合作成效紀錄",
+      "專屬成效報表",
+      "專人顧問服務",
+      "解鎖更多 cacaFly 行銷服務，例如廣告代操",
+    ],
+    cta: "聯繫顧問",
   },
 ];
 
@@ -600,19 +671,13 @@ function FoodiePlanBadge({
   plan: FoodiePlan["id"] | null;
   status: "inactive" | "active" | "expired";
 }) {
-  const style = status === "active" && plan ? FOODIE_PLAN_BADGES[plan] : null;
-  if (!style) {
-    // Not subscribed, expired, or subscribed before foodie_plan existed.
-    return (
-      <Badge variant="outline" className="border-transparent bg-muted text-muted-foreground">
-        {status === "active" ? "已開通方案" : status === "expired" ? "方案已到期" : "尚未開通方案"}
-      </Badge>
-    );
-  }
+  // 沒有有效訂閱時不顯示 Badge，狀態一律以 Supabase 的 subscription 為準。
+  if (status !== "active" || !plan) return null;
+  const style = FOODIE_PLAN_BADGES[plan];
   return (
     <Badge variant="outline" className={style.className}>
       {style.crown && <Crown className="mr-1 h-3 w-3" />}
-      {FOODIE_PLANS.find((p) => p.id === plan)?.name} 方案
+      {FOODIE_PLANS.find((p) => p.id === plan)?.name}
     </Badge>
   );
 }
@@ -620,9 +685,11 @@ function FoodiePlanBadge({
 function FoodiePlansPage({
   onBack,
   onSelectPlan,
+  onContactSales,
 }: {
   onBack: () => void;
   onSelectPlan: (plan: FoodiePlan) => void;
+  onContactSales: () => void;
 }) {
   return (
     <div>
@@ -634,7 +701,7 @@ function FoodiePlansPage({
       </button>
       <div className="mb-10">
         <h1 className="text-2xl font-bold">選擇適合你的 Foodie 媒合方案</h1>
-        <p className="mt-1 text-sm text-muted-foreground">依照你的行銷需求，選擇適合的方案開始招募創作者</p>
+        <p className="mt-1 text-sm text-muted-foreground">依照品牌的合作需求，選擇適合的方案，開始招募 Foodie 創作者。</p>
       </div>
       <div className="mx-auto grid max-w-4xl gap-6 md:grid-cols-3">
         {FOODIE_PLANS.map((plan) => (
@@ -643,12 +710,12 @@ function FoodiePlansPage({
             className={`relative flex flex-col ${plan.highlighted ? "border-primary bg-primary/5" : ""}`}
           >
             {plan.highlighted && (
-              <Badge className="absolute -top-3 left-1/2 -translate-x-1/2">推薦</Badge>
+              <Badge className="absolute -top-3 left-1/2 -translate-x-1/2">最受歡迎</Badge>
             )}
             <CardHeader>
               <CardTitle>{plan.name}</CardTitle>
               <p className="text-sm text-muted-foreground">{plan.tagline}</p>
-              <p className="mt-3 text-2xl font-bold">{plan.price}</p>
+              <p className="mt-3 text-2xl font-bold">{plan.priceLabel}</p>
             </CardHeader>
             <CardContent className="flex-1 space-y-2">
               {plan.features.map((f) => (
@@ -662,11 +729,7 @@ function FoodiePlansPage({
               <Button
                 className="w-full"
                 variant={plan.highlighted ? "default" : "outline"}
-                onClick={() =>
-                  plan.id === "enterprise"
-                    ? toast.info("已收到您的需求，專人將盡快與您聯繫")
-                    : onSelectPlan(plan)
-                }
+                onClick={() => (plan.id === "enterprise" ? onContactSales() : onSelectPlan(plan))}
               >
                 {plan.cta}
               </Button>
@@ -675,6 +738,59 @@ function FoodiePlansPage({
         ))}
       </div>
     </div>
+  );
+}
+
+function EnterpriseContactDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    // 目前沒有 Lead/Contact table，先保留 UI 收集資訊；之後若要正式追蹤
+    // 需求，改成寫入 Supabase 即可，不需要另外建一套 CRM。
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    setSubmitting(false);
+    toast.success("已收到您的需求，專人將盡快與您聯繫");
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>聯繫顧問</DialogTitle>
+          <DialogDescription>留下你的聯絡資訊，我們將由專人與你聯繫。</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>姓名</Label>
+            <Input required />
+          </div>
+          <div className="space-y-1.5">
+            <Label>公司／品牌名稱</Label>
+            <Input required />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Email</Label>
+            <Input required type="email" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>電話</Label>
+            <Input required type="tel" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>預計合作需求</Label>
+            <Textarea rows={3} placeholder="例如：每月合作案件量、預算範圍、想合作的創作者類型等" />
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "送出中..." : "送出需求"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -703,8 +819,9 @@ function FoodieCheckoutPage({
   const confirm = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    // Only the "payment" itself is simulated — the resulting plan activation
-    // below is a real write to merchant_profiles.
+    // Only the "payment" itself is simulated — onSuccess() below does a real
+    // INSERT into merchant_subscriptions, and the success step only renders
+    // after that write actually succeeds (see the catch below).
     await new Promise((resolve) => setTimeout(resolve, 1000));
     try {
       await onSuccess();
@@ -723,6 +840,7 @@ function FoodieCheckoutPage({
           <Check className="h-7 w-7" />
         </div>
         <h1 className="text-2xl font-bold">Foodie 媒合方案已開通！</h1>
+        <p className="mt-2 text-sm font-medium text-primary">{plan.name} 方案</p>
         <p className="mt-2 text-sm text-muted-foreground">
           現在可以建立第一個合作案件，開始招募適合你的創作者。
         </p>
@@ -844,13 +962,19 @@ function FoodieCheckoutPage({
                 </li>
               ))}
             </ul>
-            <div className="flex items-center justify-between border-t border-border pt-3 text-sm text-muted-foreground">
+            {plan.monthlyCaseLimit != null && (
+              <div className="flex items-center justify-between border-t border-border pt-3 text-sm text-muted-foreground">
+                <span>每月案件額度</span>
+                <span>{plan.monthlyCaseLimit} 個</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
               <span>方案價格</span>
-              <span>{plan.price}</span>
+              <span>{plan.priceLabel}</span>
             </div>
-            <div className="flex items-center justify-between text-base font-bold">
+            <div className="flex items-center justify-between border-t border-border pt-3 text-base font-bold">
               <span>合計</span>
-              <span>{plan.price}</span>
+              <span>{plan.priceLabel}</span>
             </div>
           </CardContent>
           <CardFooter>
@@ -1083,12 +1207,16 @@ function CampaignFormDialog({
   onSaved,
   userId,
   campaign,
+  monthlyCaseLimit,
+  usedThisMonth,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSaved: () => void;
   userId: string;
   campaign: Campaign | null;
+  monthlyCaseLimit: number | null;
+  usedThisMonth: number;
 }) {
   const isEdit = campaign !== null;
   const [form, setForm] = useState(DEFAULT_FORM);
@@ -1154,6 +1282,10 @@ function CampaignFormDialog({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isEdit && monthlyCaseLimit != null && usedThisMonth >= monthlyCaseLimit) {
+      toast.error("本月案件額度已使用完畢");
+      return;
+    }
     if (form.deadline && form.deadline < minLaunchDateISO()) {
       toast.error("預計上線日期至少要間隔兩週，請重新選擇");
       return;
