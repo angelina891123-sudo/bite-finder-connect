@@ -212,16 +212,6 @@ function MerchantBackoffice() {
     },
   });
 
-  const decide = async (id: string, status: "approved" | "rejected") => {
-    const { error } = await supabase.from("applications").update({ status }).eq("id", id);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success(status === "approved" ? "已核准申請" : "已拒絕申請");
-    void qc.invalidateQueries({ queryKey: ["merchant-applications", user?.id] });
-  };
-
   const redeem = async () => {
     if (!redeemTarget) return;
     const value = code.trim();
@@ -491,16 +481,6 @@ function MerchantBackoffice() {
                                       </Button>
                                     </>
                                   )}
-                                </div>
-                              )}
-                              {a.status === "pending" && (
-                                <div className="mt-2 flex gap-2">
-                                  <Button size="sm" onClick={() => decide(a.id, "approved")}>
-                                    核准
-                                  </Button>
-                                  <Button size="sm" variant="outline" onClick={() => decide(a.id, "rejected")}>
-                                    拒絕
-                                  </Button>
                                 </div>
                               )}
                             </div>

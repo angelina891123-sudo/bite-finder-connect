@@ -100,6 +100,13 @@ function AdminPage() {
     void qc.invalidateQueries({ queryKey: [table === "merchant_profiles" ? "admin-merchants" : "admin-foodies"] });
   };
 
+  const decideApplication = async (id: string, status: "approved" | "rejected") => {
+    const { error } = await supabase.from("applications").update({ status }).eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success(status === "approved" ? "已核准申請" : "已拒絕申請");
+    void qc.invalidateQueries({ queryKey: ["admin-applications"] });
+  };
+
   const toggleCompleted = async (id: string, completed: boolean) => {
     const { error } = await supabase
       .from("applications")
@@ -327,10 +334,22 @@ function AdminPage() {
                             {a.completed ? <Badge>已完成</Badge> : <Badge variant="secondary">未完成</Badge>}
                           </TableCell>
                           <TableCell>{new Date(a.created_at).toLocaleString()}</TableCell>
-                          <TableCell className="text-right">
-                            <Button size="sm" variant={a.completed ? "outline" : "default"} onClick={() => toggleCompleted(a.id, !a.completed)}>
-                              {a.completed ? "取消完成" : "標記完成"}
-                            </Button>
+                          <TableCell className="space-x-2 text-right">
+                            {a.status === "pending" && (
+                              <>
+                                <Button size="sm" onClick={() => decideApplication(a.id, "approved")}>
+                                  核准
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => decideApplication(a.id, "rejected")}>
+                                  拒絕
+                                </Button>
+                              </>
+                            )}
+                            {a.status === "approved" && (
+                              <Button size="sm" variant={a.completed ? "outline" : "default"} onClick={() => toggleCompleted(a.id, !a.completed)}>
+                                {a.completed ? "取消完成" : "標記完成"}
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
