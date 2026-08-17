@@ -1,0 +1,337 @@
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+// 以 "-" 開頭的檔案不會被 TanStack Router 當成路由，僅供 /console 底下的頁面共用。
+
+// 後台配色：肚肚橘 + 米白。以字面值寫在各頁的 Tailwind class 中，
+// 不改動 src/styles.css 的 CSS 變數，避免影響肚肚官網。
+export const ACCENT = "#FF8300";
+export const ACCENT_DARK = "#E67600";
+export const CREAM = "#FDF7F0";
+
+export type VStatus = "pending" | "approved" | "rejected";
+
+export type PlanKey = "Basic" | "Pro" | "Enterprise";
+
+/**
+ * 商家方案別與拆帳規則。
+ * price 為商家支付金額；platformFee 僅供結算時預填，不顯示於介面。
+ * Enterprise 為單案制客製報價，因此金額為 null，結算時需人工填寫。
+ */
+export const PLANS: {
+  key: PlanKey;
+  price: number | null;
+  platformFee: number | null;
+  desc: string;
+}[] = [
+  { key: "Basic", price: 750, platformFee: 600, desc: "$750" },
+  { key: "Pro", price: 1999, platformFee: 1600, desc: "$1,999" },
+  { key: "Enterprise", price: null, platformFee: null, desc: "單案制．客製報價" },
+];
+
+export const PLAN_KEYS = PLANS.map((p) => p.key);
+
+export function planOf(key: string | null | undefined) {
+  return PLANS.find((p) => p.key === key) ?? null;
+}
+
+export type MerchantRow = {
+  id: string;
+  user_id: string;
+  store_name: string;
+  contact_name: string | null;
+  phone: string | null;
+  email: string | null;
+  region: string | null;
+  address: string | null;
+  plan: string | null;
+  verification_status: VStatus;
+  review_note: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+};
+
+export type FoodieRow = {
+  id: string;
+  user_id: string;
+  nickname: string;
+  real_name: string | null;
+  region: string | null;
+  area: string | null;
+  areas: string[];
+  categories: string[];
+  collab_preferences: string[];
+  ig_handle: string | null;
+  ig_url: string | null;
+  ig_followers: number;
+  threads_handle: string | null;
+  threads_followers: number;
+  youtube_channel: string | null;
+  youtube_subscribers: number;
+  reels_avg_views: number;
+  engagement_rate: number;
+  portfolio_url: string | null;
+  phone: string | null;
+  email: string | null;
+  verification_status: VStatus;
+  review_note: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+};
+
+// merchant_profiles.plan 是本分支新增的欄位，尚未反映在自動產生的 types.ts；
+// settlements 資料表同理。重新產生型別後即可移除這層轉型。
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const rawSupabase = supabase as any;
+
+export function useMerchants(enabled: boolean) {
+  return useQuery({
+    queryKey: ["console-merchants"],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await rawSupabase
+        .from("merchant_profiles")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as MerchantRow[];
+    },
+  });
+}
+
+export function useFoodies(enabled: boolean) {
+  return useQuery({
+    queryKey: ["console-foodies"],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("foodie_profiles")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as FoodieRow[];
+    },
+  });
+}
+
+export function useCampaigns(enabled: boolean) {
+  return useQuery({
+    queryKey: ["console-campaigns"],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("campaigns")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export type ApplicationRow = {
+  id: string;
+  status: VStatus;
+  completed: boolean;
+  completed_at: string | null;
+  created_at: string;
+  creator_id: string;
+  campaign_id: string;
+  message: string | null;
+  campaigns: { title: string; restaurant_name: string | null; merchant_id: string } | null;
+};
+
+export function useApplications(enabled: boolean) {
+  return useQuery({
+    queryKey: ["console-applications"],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("applications")
+        .select(
+          "id,status,completed,completed_at,created_at,creator_id,campaign_id,message,campaigns(title,restaurant_name,merchant_id)",
+        )
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as ApplicationRow[];
+    },
+  });
+}
+
+/** 從有填寫的帳號推導 Foodie 實際使用的宣傳平台。 */
+export function platformsOf(f: FoodieRow) {
+  const list: { name: string; followers: number; handle: string | null }[] = [];
+  if (f.ig_handle || f.ig_url || f.ig_followers > 0) {
+    list.push({ name: "Instagram", followers: f.ig_followers, handle: f.ig_handle });
+  }
+  if (f.threads_handle || f.threads_followers > 0) {
+    list.push({ name: "Threads", followers: f.threads_followers, handle: f.threads_handle });
+  }
+  if (f.youtube_channel || f.youtube_subscribers > 0) {
+    list.push({ name: "YouTube", followers: f.youtube_subscribers, handle: f.youtube_channel });
+  }
+  return list;
+}
+
+/** 曾經合作次數：以「已標記完成」的申請筆數計算。 */
+export function collabStats(apps: ApplicationRow[], creatorId: string) {
+  const mine = apps.filter((a) => a.creator_id === creatorId);
+  return {
+    completed: mine.filter((a) => a.completed).length,
+    approved: mine.filter((a) => a.status === "approved").length,
+    total: mine.length,
+  };
+}
+
+export type SettlementStatus = "pending" | "invoiced" | "paid" | "void";
+
+export type Settlement = {
+  id: string;
+  application_id: string;
+  merchant_id: string;
+  creator_id: string;
+  period: string;
+  amount: number;
+  platform_fee: number;
+  currency: string;
+  status: SettlementStatus;
+  note: string | null;
+  paid_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** settlements 資料表尚未建立時，Postgres 會回傳 42P01。 */
+export const MISSING_TABLE = "42P01";
+
+export function useSettlements(enabled: boolean) {
+  return useQuery({
+    queryKey: ["console-settlements"],
+    enabled,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await rawSupabase
+        .from("settlements")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Settlement[];
+    },
+  });
+}
+
+export type SubStatus = "draft" | "submitted" | "revising" | "approved";
+
+export const SUB_LABEL: Record<SubStatus, string> = {
+  draft: "待提交",
+  submitted: "待確稿",
+  revising: "修改中",
+  approved: "已確稿",
+};
+
+export type Submission = {
+  id: string;
+  application_id: string;
+  copy_text: string | null;
+  copy_text_prev: string | null;
+  copy_status: SubStatus;
+  copy_submitted_at: string | null;
+  copy_reviewed_at: string | null;
+  photo_status: SubStatus;
+  photo_reviewed_at: string | null;
+  video_url: string | null;
+  review_note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SubmissionPhoto = {
+  id: string;
+  submission_id: string;
+  code: string | null;
+  url: string;
+  selected: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export function useSubmissions(enabled: boolean) {
+  return useQuery({
+    queryKey: ["console-submissions"],
+    enabled,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await rawSupabase
+        .from("submissions")
+        .select("*")
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Submission[];
+    },
+  });
+}
+
+export function useSubmissionPhotos(enabled: boolean) {
+  return useQuery({
+    queryKey: ["console-submission-photos"],
+    enabled,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await rawSupabase
+        .from("submission_photos")
+        .select("*")
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as SubmissionPhoto[];
+    },
+  });
+}
+
+/**
+ * 逐行比對兩份文案，用於「比較差異」。
+ * 以最長共同子序列標出新增與刪除的行，未變動的行原樣顯示。
+ */
+export function diffLines(prev: string, next: string) {
+  const a = prev.split("\n");
+  const b = next.split("\n");
+  const m = a.length;
+  const n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = m - 1; i >= 0; i--) {
+    for (let j = n - 1; j >= 0; j--) {
+      dp[i]![j] = a[i] === b[j] ? dp[i + 1]![j + 1]! + 1 : Math.max(dp[i + 1]![j]!, dp[i]![j + 1]!);
+    }
+  }
+  const out: { type: "same" | "add" | "del"; text: string }[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < m && j < n) {
+    if (a[i] === b[j]) {
+      out.push({ type: "same", text: a[i]! });
+      i++;
+      j++;
+    } else if (dp[i + 1]![j]! >= dp[i]![j + 1]!) {
+      out.push({ type: "del", text: a[i]! });
+      i++;
+    } else {
+      out.push({ type: "add", text: b[j]! });
+      j++;
+    }
+  }
+  while (i < m) out.push({ type: "del", text: a[i++]! });
+  while (j < n) out.push({ type: "add", text: b[j++]! });
+  return out;
+}
+
+export const TWD = new Intl.NumberFormat("zh-TW", {
+  style: "currency",
+  currency: "TWD",
+  maximumFractionDigits: 0,
+});
+
+/** 目前月份，格式 YYYY-MM，作為對帳期間的預設值。 */
+export function currentPeriod() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}

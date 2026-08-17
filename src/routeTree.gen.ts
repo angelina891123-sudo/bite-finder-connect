@@ -12,11 +12,20 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ConsoleRouteRouteImport } from './routes/console/route'
 import { Route as FoodieSignupRouteImport } from './routes/foodie-signup'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedMerchantRouteImport } from './routes/_authenticated/merchant'
 import { Route as AuthenticatedMyApplicationsRouteImport } from './routes/_authenticated/my-applications'
+import { Route as ConsoleIndexRouteImport } from './routes/console/index'
+import { Route as ConsoleCampaignsRouteImport } from './routes/console/campaigns'
+import { Route as ConsoleCreatorsRouteImport } from './routes/console/creators'
+import { Route as ConsoleMerchantsRouteImport } from './routes/console/merchants'
+import { Route as ConsoleReviewsRouteImport } from './routes/console/reviews'
+import { Route as ConsoleSettlementsRouteImport } from './routes/console/settlements'
+import { Route as ConsoleSubmissionsRouteImport } from './routes/console/submissions'
+import { Route as ConsoleLoginRouteImport } from './routes/console_.login'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -30,6 +39,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConsoleRouteRoute = ConsoleRouteRouteImport.update({
+  id: '/console',
+  path: '/console',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FoodieSignupRoute = FoodieSignupRouteImport.update({
@@ -58,15 +72,64 @@ const AuthenticatedMyApplicationsRoute =
     path: '/my-applications',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ConsoleIndexRoute = ConsoleIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ConsoleRouteRoute,
+} as any)
+const ConsoleCampaignsRoute = ConsoleCampaignsRouteImport.update({
+  id: '/campaigns',
+  path: '/campaigns',
+  getParentRoute: () => ConsoleRouteRoute,
+} as any)
+const ConsoleCreatorsRoute = ConsoleCreatorsRouteImport.update({
+  id: '/creators',
+  path: '/creators',
+  getParentRoute: () => ConsoleRouteRoute,
+} as any)
+const ConsoleMerchantsRoute = ConsoleMerchantsRouteImport.update({
+  id: '/merchants',
+  path: '/merchants',
+  getParentRoute: () => ConsoleRouteRoute,
+} as any)
+const ConsoleReviewsRoute = ConsoleReviewsRouteImport.update({
+  id: '/reviews',
+  path: '/reviews',
+  getParentRoute: () => ConsoleRouteRoute,
+} as any)
+const ConsoleSettlementsRoute = ConsoleSettlementsRouteImport.update({
+  id: '/settlements',
+  path: '/settlements',
+  getParentRoute: () => ConsoleRouteRoute,
+} as any)
+const ConsoleSubmissionsRoute = ConsoleSubmissionsRouteImport.update({
+  id: '/submissions',
+  path: '/submissions',
+  getParentRoute: () => ConsoleRouteRoute,
+} as any)
+const ConsoleLoginRoute = ConsoleLoginRouteImport.update({
+  id: '/console_/login',
+  path: '/console/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/console': typeof ConsoleRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/foodie-signup': typeof FoodieSignupRoute
   '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/merchant': typeof AuthenticatedMerchantRoute
   '/my-applications': typeof AuthenticatedMyApplicationsRoute
+  '/console/campaigns': typeof ConsoleCampaignsRoute
+  '/console/creators': typeof ConsoleCreatorsRoute
+  '/console/merchants': typeof ConsoleMerchantsRoute
+  '/console/reviews': typeof ConsoleReviewsRoute
+  '/console/settlements': typeof ConsoleSettlementsRoute
+  '/console/submissions': typeof ConsoleSubmissionsRoute
+  '/console/login': typeof ConsoleLoginRoute
+  '/console/': typeof ConsoleIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -76,28 +139,54 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminRoute
   '/merchant': typeof AuthenticatedMerchantRoute
   '/my-applications': typeof AuthenticatedMyApplicationsRoute
+  '/console/campaigns': typeof ConsoleCampaignsRoute
+  '/console/creators': typeof ConsoleCreatorsRoute
+  '/console/merchants': typeof ConsoleMerchantsRoute
+  '/console/reviews': typeof ConsoleReviewsRoute
+  '/console/settlements': typeof ConsoleSettlementsRoute
+  '/console/submissions': typeof ConsoleSubmissionsRoute
+  '/console/login': typeof ConsoleLoginRoute
+  '/console': typeof ConsoleIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/console': typeof ConsoleRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/foodie-signup': typeof FoodieSignupRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/merchant': typeof AuthenticatedMerchantRoute
   '/_authenticated/my-applications': typeof AuthenticatedMyApplicationsRoute
+  '/console/campaigns': typeof ConsoleCampaignsRoute
+  '/console/creators': typeof ConsoleCreatorsRoute
+  '/console/merchants': typeof ConsoleMerchantsRoute
+  '/console/reviews': typeof ConsoleReviewsRoute
+  '/console/settlements': typeof ConsoleSettlementsRoute
+  '/console/submissions': typeof ConsoleSubmissionsRoute
+  '/console_/login': typeof ConsoleLoginRoute
+  '/console/': typeof ConsoleIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/console'
     | '/auth'
     | '/foodie-signup'
     | '/reset-password'
     | '/admin'
     | '/merchant'
     | '/my-applications'
+    | '/console/campaigns'
+    | '/console/creators'
+    | '/console/merchants'
+    | '/console/reviews'
+    | '/console/settlements'
+    | '/console/submissions'
+    | '/console/login'
+    | '/console/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -107,24 +196,43 @@ export interface FileRouteTypes {
     | '/admin'
     | '/merchant'
     | '/my-applications'
+    | '/console/campaigns'
+    | '/console/creators'
+    | '/console/merchants'
+    | '/console/reviews'
+    | '/console/settlements'
+    | '/console/submissions'
+    | '/console/login'
+    | '/console'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/console'
     | '/auth'
     | '/foodie-signup'
     | '/reset-password'
     | '/_authenticated/admin'
     | '/_authenticated/merchant'
     | '/_authenticated/my-applications'
+    | '/console/campaigns'
+    | '/console/creators'
+    | '/console/merchants'
+    | '/console/reviews'
+    | '/console/settlements'
+    | '/console/submissions'
+    | '/console_/login'
+    | '/console/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  ConsoleRouteRoute: typeof ConsoleRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   FoodieSignupRoute: typeof FoodieSignupRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ConsoleLoginRoute: typeof ConsoleLoginRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -148,6 +256,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/console': {
+      id: '/console'
+      path: '/console'
+      fullPath: '/console'
+      preLoaderRoute: typeof ConsoleRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/foodie-signup': {
@@ -185,6 +300,62 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMyApplicationsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/console/': {
+      id: '/console/'
+      path: '/'
+      fullPath: '/console/'
+      preLoaderRoute: typeof ConsoleIndexRouteImport
+      parentRoute: typeof ConsoleRouteRoute
+    }
+    '/console/campaigns': {
+      id: '/console/campaigns'
+      path: '/campaigns'
+      fullPath: '/console/campaigns'
+      preLoaderRoute: typeof ConsoleCampaignsRouteImport
+      parentRoute: typeof ConsoleRouteRoute
+    }
+    '/console/creators': {
+      id: '/console/creators'
+      path: '/creators'
+      fullPath: '/console/creators'
+      preLoaderRoute: typeof ConsoleCreatorsRouteImport
+      parentRoute: typeof ConsoleRouteRoute
+    }
+    '/console/merchants': {
+      id: '/console/merchants'
+      path: '/merchants'
+      fullPath: '/console/merchants'
+      preLoaderRoute: typeof ConsoleMerchantsRouteImport
+      parentRoute: typeof ConsoleRouteRoute
+    }
+    '/console/reviews': {
+      id: '/console/reviews'
+      path: '/reviews'
+      fullPath: '/console/reviews'
+      preLoaderRoute: typeof ConsoleReviewsRouteImport
+      parentRoute: typeof ConsoleRouteRoute
+    }
+    '/console/settlements': {
+      id: '/console/settlements'
+      path: '/settlements'
+      fullPath: '/console/settlements'
+      preLoaderRoute: typeof ConsoleSettlementsRouteImport
+      parentRoute: typeof ConsoleRouteRoute
+    }
+    '/console/submissions': {
+      id: '/console/submissions'
+      path: '/submissions'
+      fullPath: '/console/submissions'
+      preLoaderRoute: typeof ConsoleSubmissionsRouteImport
+      parentRoute: typeof ConsoleRouteRoute
+    }
+    '/console_/login': {
+      id: '/console_/login'
+      path: '/console/login'
+      fullPath: '/console/login'
+      preLoaderRoute: typeof ConsoleLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -203,12 +374,38 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface ConsoleRouteRouteChildren {
+  ConsoleCampaignsRoute: typeof ConsoleCampaignsRoute
+  ConsoleCreatorsRoute: typeof ConsoleCreatorsRoute
+  ConsoleMerchantsRoute: typeof ConsoleMerchantsRoute
+  ConsoleReviewsRoute: typeof ConsoleReviewsRoute
+  ConsoleSettlementsRoute: typeof ConsoleSettlementsRoute
+  ConsoleSubmissionsRoute: typeof ConsoleSubmissionsRoute
+  ConsoleIndexRoute: typeof ConsoleIndexRoute
+}
+
+const ConsoleRouteRouteChildren: ConsoleRouteRouteChildren = {
+  ConsoleCampaignsRoute: ConsoleCampaignsRoute,
+  ConsoleCreatorsRoute: ConsoleCreatorsRoute,
+  ConsoleMerchantsRoute: ConsoleMerchantsRoute,
+  ConsoleReviewsRoute: ConsoleReviewsRoute,
+  ConsoleSettlementsRoute: ConsoleSettlementsRoute,
+  ConsoleSubmissionsRoute: ConsoleSubmissionsRoute,
+  ConsoleIndexRoute: ConsoleIndexRoute,
+}
+
+const ConsoleRouteRouteWithChildren = ConsoleRouteRoute._addFileChildren(
+  ConsoleRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  ConsoleRouteRoute: ConsoleRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   FoodieSignupRoute: FoodieSignupRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ConsoleLoginRoute: ConsoleLoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
