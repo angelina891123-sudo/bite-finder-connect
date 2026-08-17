@@ -74,7 +74,7 @@ function MyApplications() {
       const { data, error } = await supabase
         .from("applications")
         .select(
-          "*,campaigns(id,title,description,restaurant_name,region,reward,collab_type,min_followers,slots,deadline,photos)",
+          "*,campaigns(id,title,description,video_direction,video_must_include,video_must_avoid,copy_must_include,copy_must_avoid,hashtags,reference_link,notes,restaurant_name,region,address,reward,collab_types,min_followers,slots,deadline,photos)",
         )
         .eq("creator_id", user!.id)
         .order("created_at", { ascending: false });
@@ -185,8 +185,8 @@ function MyApplications() {
                       <Badge variant={s.variant}>{s.label}</Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {r.campaigns?.region}・{r.campaigns?.collab_type}・{r.campaigns?.reward}
-                      {r.campaigns?.deadline ? `・截止日 ${r.campaigns.deadline}` : "・無截止日"}
+                      {r.campaigns?.region}・{r.campaigns?.collab_types?.join("、")}・{r.campaigns?.reward}
+                      {r.campaigns?.deadline ? `・預計上線 ${r.campaigns.deadline}` : "・未提供上線日期"}
                       {isExpired(r.campaigns?.deadline, today) && "（已截止）"}
                     </p>
                   </CardHeader>

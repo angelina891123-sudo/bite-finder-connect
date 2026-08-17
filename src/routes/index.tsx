@@ -41,10 +41,19 @@ type Campaign = {
   id: string;
   title: string;
   description: string | null;
+  video_direction: string | null;
+  video_must_include: string | null;
+  video_must_avoid: string | null;
+  copy_must_include: string | null;
+  copy_must_avoid: string | null;
+  hashtags: string[] | null;
+  reference_link: string | null;
+  notes: string | null;
   restaurant_name: string | null;
   region: string;
+  address: string | null;
   min_followers: number;
-  collab_type: string;
+  collab_types: string[];
   reward: string;
   slots: number;
   deadline: string | null;
@@ -68,7 +77,9 @@ function Index() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("campaigns")
-        .select("id,title,description,restaurant_name,region,min_followers,collab_type,reward,slots,deadline,photos")
+        .select(
+          "id,title,description,video_direction,video_must_include,video_must_avoid,copy_must_include,copy_must_avoid,hashtags,reference_link,notes,restaurant_name,region,address,min_followers,collab_types,reward,slots,deadline,photos",
+        )
         .eq("status", "published")
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -121,7 +132,7 @@ function Index() {
       (c) =>
         (region === "全部" || c.region === region) &&
         (keyword.trim() === "" ||
-          `${c.title}${c.restaurant_name ?? ""}${c.collab_type}`.toLowerCase().includes(keyword.toLowerCase())),
+          `${c.title}${c.restaurant_name ?? ""}${c.collab_types.join(" ")}`.toLowerCase().includes(keyword.toLowerCase())),
     )
     // 已截止的案件仍然看得到，但排到最後且不能申請。
     .sort((a, b) => Number(isExpired(a.deadline, today)) - Number(isExpired(b.deadline, today)));
@@ -243,7 +254,11 @@ function Index() {
                 <CardHeader>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <MapPin className="h-3.5 w-3.5" /> {c.region}
-                    <Badge variant="secondary">{c.collab_type}</Badge>
+                    {c.collab_types.map((t) => (
+                      <Badge key={t} variant="secondary">
+                        {t}
+                      </Badge>
+                    ))}
                     {expired && <Badge variant="destructive">已截止</Badge>}
                     {applied && <Badge>已申請・{APPLIED_LABEL[applied] ?? applied}</Badge>}
                   </div>
@@ -251,7 +266,9 @@ function Index() {
                   <p className="text-sm text-muted-foreground">{c.restaurant_name}</p>
                 </CardHeader>
                 <CardContent className="flex-1 space-y-2 text-sm">
-                  {c.description && <p className="line-clamp-3 text-muted-foreground">{c.description}</p>}
+                  {(c.copy_must_include ?? c.description) && (
+                    <p className="line-clamp-3 text-muted-foreground">{c.copy_must_include ?? c.description}</p>
+                  )}
                   <p className="flex items-center gap-2">
                     <Gift className="h-4 w-4 text-primary" /> {c.reward}
                   </p>

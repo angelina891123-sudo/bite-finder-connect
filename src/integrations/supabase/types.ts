@@ -75,15 +75,21 @@ export type Database = {
       }
       campaigns: {
         Row: {
-          collab_type: string
+          address: string | null
+          collab_types: string[]
+          copy_must_avoid: string | null
+          copy_must_include: string | null
           cover_url: string | null
           created_at: string
           deadline: string | null
           description: string | null
+          hashtags: string[]
           id: string
           merchant_id: string
           min_followers: number
+          notes: string | null
           photos: string[]
+          reference_link: string | null
           region: string
           restaurant_name: string | null
           reward: string
@@ -91,17 +97,26 @@ export type Database = {
           status: Database["public"]["Enums"]["campaign_status"]
           title: string
           updated_at: string
+          video_direction: string | null
+          video_must_avoid: string | null
+          video_must_include: string | null
         }
         Insert: {
-          collab_type: string
+          address?: string | null
+          collab_types: string[]
+          copy_must_avoid?: string | null
+          copy_must_include?: string | null
           cover_url?: string | null
           created_at?: string
           deadline?: string | null
           description?: string | null
+          hashtags?: string[]
           id?: string
           merchant_id: string
           min_followers?: number
+          notes?: string | null
           photos?: string[]
+          reference_link?: string | null
           region: string
           restaurant_name?: string | null
           reward: string
@@ -109,17 +124,26 @@ export type Database = {
           status?: Database["public"]["Enums"]["campaign_status"]
           title: string
           updated_at?: string
+          video_direction?: string | null
+          video_must_avoid?: string | null
+          video_must_include?: string | null
         }
         Update: {
-          collab_type?: string
+          address?: string | null
+          collab_types?: string[]
+          copy_must_avoid?: string | null
+          copy_must_include?: string | null
           cover_url?: string | null
           created_at?: string
           deadline?: string | null
           description?: string | null
+          hashtags?: string[]
           id?: string
           merchant_id?: string
           min_followers?: number
+          notes?: string | null
           photos?: string[]
+          reference_link?: string | null
           region?: string
           restaurant_name?: string | null
           reward?: string
@@ -127,6 +151,9 @@ export type Database = {
           status?: Database["public"]["Enums"]["campaign_status"]
           title?: string
           updated_at?: string
+          video_direction?: string | null
+          video_must_avoid?: string | null
+          video_must_include?: string | null
         }
         Relationships: []
       }

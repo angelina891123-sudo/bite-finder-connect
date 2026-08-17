@@ -64,9 +64,18 @@ type Campaign = {
   id: string;
   title: string;
   description: string | null;
+  video_direction: string | null;
+  video_must_include: string | null;
+  video_must_avoid: string | null;
+  copy_must_include: string | null;
+  copy_must_avoid: string | null;
+  hashtags: string[];
+  reference_link: string | null;
+  notes: string | null;
   restaurant_name: string | null;
   region: string;
-  collab_type: string;
+  address: string | null;
+  collab_types: string[];
   reward: string;
   slots: number;
   min_followers: number;
@@ -367,8 +376,8 @@ function MerchantBackoffice() {
                         </div>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {c.region}・{c.collab_type}・粉絲門檻 {c.min_followers.toLocaleString()}・名額 {c.slots}
-                        {c.deadline ? `・截止 ${c.deadline}` : ""}
+                        {c.region}・{c.collab_types.join("、")}・粉絲門檻 {c.min_followers.toLocaleString()}・名額 {c.slots}
+                        {c.deadline ? `・預計上線 ${c.deadline}` : ""}
                       </p>
                     </CardHeader>
                     <CardContent className="space-y-3">
@@ -1006,16 +1015,32 @@ function PlaceholderSection({ section }: { section: MenuKey }) {
 
 const MAX_PHOTOS = 6;
 const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
+const MIN_LAUNCH_LEAD_DAYS = 14;
+
+function minLaunchDateISO() {
+  const d = new Date();
+  d.setDate(d.getDate() + MIN_LAUNCH_LEAD_DAYS);
+  return d.toISOString().slice(0, 10);
+}
 
 const DEFAULT_FORM = {
   title: "",
   restaurant_name: "",
-  description: "",
+  video_direction: "",
+  video_must_include: "",
+  video_must_avoid: "",
+  copy_must_include: "",
+  copy_must_avoid: "",
+  // Free text; split on whitespace into an array on submit.
+  hashtags: "",
+  reference_link: "",
+  notes: "",
   region: REGIONS[0]!,
+  address: "",
   // Numeric fields are held as strings so the input can be cleared while typing;
   // they're converted back to numbers on submit.
   min_followers: "1000",
-  collab_type: COLLAB_TYPES[0]!,
+  collab_types: [COLLAB_TYPES[0]!] as string[],
   reward: "",
   slots: "3",
   deadline: "",
@@ -1026,10 +1051,20 @@ function campaignToForm(c: Campaign): typeof DEFAULT_FORM {
   return {
     title: c.title,
     restaurant_name: c.restaurant_name ?? "",
-    description: c.description ?? "",
+    video_direction: c.video_direction ?? "",
+    video_must_include: c.video_must_include ?? "",
+    video_must_avoid: c.video_must_avoid ?? "",
+    // Older campaigns only have the single legacy `description` field;
+    // surface it as 必要露出資訊 so editing doesn't silently drop it.
+    copy_must_include: c.copy_must_include ?? c.description ?? "",
+    copy_must_avoid: c.copy_must_avoid ?? "",
+    hashtags: c.hashtags.join(" "),
+    reference_link: c.reference_link ?? "",
+    notes: c.notes ?? "",
     region: c.region,
+    address: c.address ?? "",
     min_followers: String(c.min_followers),
-    collab_type: c.collab_type,
+    collab_types: c.collab_types,
     reward: c.reward,
     slots: String(c.slots),
     deadline: c.deadline ?? "",
@@ -1100,6 +1135,14 @@ function CampaignFormDialog({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (form.deadline && form.deadline < minLaunchDateISO()) {
+      toast.error("預計上線日期至少要間隔兩週，請重新選擇");
+      return;
+    }
+    if (form.collab_types.length === 0) {
+      toast.error("請至少選擇一個合作類型");
+      return;
+    }
     setBusy(true);
     try {
       const campaignId = campaign?.id ?? crypto.randomUUID();
@@ -1108,10 +1151,18 @@ function CampaignFormDialog({
         photos: [...existingPhotos, ...uploaded],
         title: form.title,
         restaurant_name: form.restaurant_name || null,
-        description: form.description || null,
+        video_direction: form.video_direction || null,
+        video_must_include: form.video_must_include || null,
+        video_must_avoid: form.video_must_avoid || null,
+        copy_must_include: form.copy_must_include || null,
+        copy_must_avoid: form.copy_must_avoid || null,
+        hashtags: form.hashtags.trim() === "" ? [] : form.hashtags.trim().split(/\s+/),
+        reference_link: form.reference_link.trim() || null,
+        notes: form.notes || null,
         region: form.region,
+        address: form.address.trim() || null,
         min_followers: Number(form.min_followers),
-        collab_type: form.collab_type,
+        collab_types: form.collab_types,
         reward: form.reward,
         slots: Number(form.slots),
         deadline: form.deadline || null,
@@ -1149,6 +1200,33 @@ function CampaignFormDialog({
             <Label>餐廳名稱</Label>
             <Input value={form.restaurant_name} onChange={(e) => setForm({ ...form, restaurant_name: e.target.value })} />
           </div>
+          <div className="space-y-1.5">
+            <Label>合作類型（可複選）</Label>
+            <div className="flex flex-wrap gap-2">
+              {COLLAB_TYPES.map((t) => {
+                const selected = form.collab_types.includes(t);
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        collab_types: selected ? f.collab_types.filter((x) => x !== t) : [...f.collab_types, t],
+                      }))
+                    }
+                    className={`rounded-full border px-3 py-1 text-sm transition-colors ${
+                      selected
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-input text-foreground hover:bg-accent"
+                    }`}
+                  >
+                    {t}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>地區</Label>
@@ -1162,17 +1240,14 @@ function CampaignFormDialog({
                 ))}
               </select>
             </div>
-            <div className="space-y-1.5">
-              <Label>合作類型</Label>
-              <select
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={form.collab_type}
-                onChange={(e) => setForm({ ...form, collab_type: e.target.value })}
-              >
-                {COLLAB_TYPES.map((r) => (
-                  <option key={r}>{r}</option>
-                ))}
-              </select>
+            <div className="col-span-2 space-y-1.5">
+              <Label>地址（選填）</Label>
+              <Input
+                placeholder="例如：台北市大安區忠孝東路四段1號"
+                value={form.address}
+                onChange={(e) => setForm({ ...form, address: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">填寫後首頁會顯示 Google 地圖位置</p>
             </div>
             <div className="space-y-1.5">
               <Label>粉絲門檻</Label>
@@ -1208,8 +1283,13 @@ function CampaignFormDialog({
           </div>
           <div className="space-y-1.5">
             <Label>預計上線日期</Label>
-            <Input type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
-            <p className="text-xs text-muted-foreground">請預留 7-14 工作天</p>
+            <Input
+              type="date"
+              min={minLaunchDateISO()}
+              value={form.deadline}
+              onChange={(e) => setForm({ ...form, deadline: e.target.value })}
+            />
+            <p className="text-xs text-muted-foreground">請預留 7-14 工作天，最早可選兩週後的日期</p>
           </div>
           <div className="space-y-1.5">
             <Label>案件照片（最多 {MAX_PHOTOS} 張）</Label>
@@ -1258,14 +1338,86 @@ function CampaignFormDialog({
               )}
             </div>
           </div>
+          <div className="space-y-4 rounded-lg border border-border p-3">
+            <Label className="text-sm font-semibold">案件需求</Label>
+
+            <div className="space-y-3">
+              <p className="text-sm font-medium">影音需求</p>
+              <div className="space-y-1.5">
+                <Label>影片主軸方向</Label>
+                <Textarea
+                  rows={2}
+                  placeholder="說明影片想呈現的整體風格與方向"
+                  value={form.video_direction}
+                  onChange={(e) => setForm({ ...form, video_direction: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>影片必要露出資訊/畫面</Label>
+                <Textarea
+                  rows={2}
+                  placeholder="規格、內容、特色、關鍵字..."
+                  value={form.video_must_include}
+                  onChange={(e) => setForm({ ...form, video_must_include: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>影片避免露出資訊/畫面</Label>
+                <Textarea
+                  rows={2}
+                  placeholder="腥羶色、暴力、武器、政治、宗教"
+                  value={form.video_must_avoid}
+                  onChange={(e) => setForm({ ...form, video_must_avoid: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3 border-t border-border pt-4">
+              <p className="text-sm font-medium">文案需求</p>
+              <div className="space-y-1.5">
+                <Label>必要露出資訊</Label>
+                <Textarea
+                  rows={2}
+                  placeholder="內容、特色、關鍵字、地點..."
+                  value={form.copy_must_include}
+                  onChange={(e) => setForm({ ...form, copy_must_include: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>避免露出資訊</Label>
+                <Textarea
+                  rows={2}
+                  placeholder="競品品牌、產品"
+                  value={form.copy_must_avoid}
+                  onChange={(e) => setForm({ ...form, copy_must_avoid: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>hashtag</Label>
+                <Input
+                  placeholder="#美食 #台北美食（以空白分隔）"
+                  value={form.hashtags}
+                  onChange={(e) => setForm({ ...form, hashtags: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>連結（1 個）</Label>
+                <Input
+                  type="url"
+                  placeholder="https://..."
+                  value={form.reference_link}
+                  onChange={(e) => setForm({ ...form, reference_link: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
           <div className="space-y-1.5">
-            <Label>文案需求</Label>
+            <Label>備註（選填）</Label>
             <Textarea
-              required
-              rows={4}
-              placeholder="說明文案需求、拍攝需求、到店時段等"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              rows={3}
+              placeholder="其他想補充說明的事項"
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
             />
           </div>
           <DialogFooter>
