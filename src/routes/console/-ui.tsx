@@ -22,13 +22,15 @@ import {
 } from "@/components/ui/select";
 import {
   collabStats,
-  PLAN_KEYS,
+  PLANS,
   planOf,
   platformsOf,
-  rawSupabase,
+  SUBSCRIPTION_LABEL,
   type ApplicationRow,
   type FoodieRow,
   type MerchantRow,
+  type PlanKey,
+  type SubscriptionStatus,
   type VStatus,
 } from "./-data";
 
@@ -59,7 +61,19 @@ export function PlanBadge({ plan }: { plan: string | null }) {
   if (!p) return <span className="text-sm text-[#A08E7C]">{UNSET}</span>;
   return (
     <Badge variant="outline" className="border-[#FF8300] text-[#B85C00]">
-      {p.key}
+      {p.label}
+    </Badge>
+  );
+}
+
+/** 訂閱狀態：方案別要搭配這個看，否則會把未訂閱的商家當成有方案。 */
+export function SubscriptionBadge({ status }: { status: SubscriptionStatus }) {
+  if (status === "active") {
+    return <Badge className="bg-[#FF8300] text-white hover:bg-[#FF8300]">訂閱中</Badge>;
+  }
+  return (
+    <Badge variant={status === "expired" ? "destructive" : "secondary"}>
+      {SUBSCRIPTION_LABEL[status]}
     </Badge>
   );
 }
@@ -103,9 +117,9 @@ export function useReviewActions() {
   };
 
   const setPlan = async (id: string, plan: string) => {
-    const { error } = await rawSupabase
+    const { error } = await supabase
       .from("merchant_profiles")
-      .update({ plan: plan === UNSET ? null : plan })
+      .update({ foodie_plan: plan === UNSET ? null : (plan as PlanKey) })
       .eq("id", id);
     if (error) {
       toast.error(error.message);
@@ -134,9 +148,9 @@ export function PlanSelect({
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={UNSET}>{UNSET}</SelectItem>
-        {PLAN_KEYS.map((p) => (
-          <SelectItem key={p} value={p}>
-            {p}
+        {PLANS.map((p) => (
+          <SelectItem key={p.key} value={p.key}>
+            {p.label}
           </SelectItem>
         ))}
       </SelectContent>
@@ -166,7 +180,7 @@ export function MerchantDialog({
     if (await review("merchant_profiles", merchant.id, status, note)) onClose();
   };
 
-  const plan = planOf(merchant?.plan);
+  const plan = planOf(merchant?.foodie_plan);
 
   return (
     <Dialog open={merchant !== null} onOpenChange={(o) => !o && onClose()}>
@@ -181,11 +195,14 @@ export function MerchantDialog({
                 <div>
                   <p className="text-xs text-[#A08E7C]">方案別</p>
                   <p className="mt-0.5 text-sm font-medium text-[#3F2E1E]">
-                    {plan ? plan.desc : UNSET}
+                    {plan ? `${plan.label}．${plan.desc}` : UNSET}
                   </p>
+                  <div className="mt-1.5">
+                    <SubscriptionBadge status={merchant.foodie_subscription_status} />
+                  </div>
                 </div>
                 <PlanSelect
-                  value={merchant.plan}
+                  value={merchant.foodie_plan}
                   onChange={(v) => setPlan(merchant.id, v)}
                   className="h-9 w-36"
                 />

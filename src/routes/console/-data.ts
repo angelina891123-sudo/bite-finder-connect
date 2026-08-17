@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 
 // 以 "-" 開頭的檔案不會被 TanStack Router 當成路由，僅供 /console 底下的頁面共用。
 
@@ -11,25 +12,42 @@ export const CREAM = "#FDF7F0";
 
 export type VStatus = "pending" | "approved" | "rejected";
 
-export type PlanKey = "Basic" | "Pro" | "Enterprise";
+// 方案別沿用上游 merchant_profiles.foodie_plan 的 enum，商家後台訂閱時寫入同一個欄位，
+// 營運後台不另建欄位，兩邊看到的方案才會一致。
+export type PlanKey = Database["public"]["Enums"]["foodie_plan"];
+export type SubscriptionStatus = Database["public"]["Enums"]["foodie_subscription_status"];
 
 /**
- * 商家方案別與拆帳規則。
+ * 方案別與拆帳規則。
+ * key 是資料庫的 enum 值，label 是介面顯示名稱。
  * price 為商家支付金額；platformFee 僅供結算時預填，不顯示於介面。
- * Enterprise 為單案制客製報價，因此金額為 null，結算時需人工填寫。
+ * enterprise 為單案制客製報價，因此金額為 null，結算時需人工填寫。
  */
 export const PLANS: {
   key: PlanKey;
+  label: string;
   price: number | null;
   platformFee: number | null;
   desc: string;
 }[] = [
-  { key: "Basic", price: 750, platformFee: 600, desc: "$750" },
-  { key: "Pro", price: 1999, platformFee: 1600, desc: "$1,999" },
-  { key: "Enterprise", price: null, platformFee: null, desc: "單案制．客製報價" },
+  { key: "basic", label: "Basic", price: 750, platformFee: 600, desc: "$750" },
+  { key: "pro", label: "Pro", price: 1999, platformFee: 1600, desc: "$1,999" },
+  {
+    key: "enterprise",
+    label: "Enterprise",
+    price: null,
+    platformFee: null,
+    desc: "單案制．客製報價",
+  },
 ];
 
 export const PLAN_KEYS = PLANS.map((p) => p.key);
+
+export const SUBSCRIPTION_LABEL: Record<SubscriptionStatus, string> = {
+  active: "訂閱中",
+  inactive: "未訂閱",
+  expired: "已到期",
+};
 
 export function planOf(key: string | null | undefined) {
   return PLANS.find((p) => p.key === key) ?? null;
@@ -44,7 +62,8 @@ export type MerchantRow = {
   email: string | null;
   region: string | null;
   address: string | null;
-  plan: string | null;
+  foodie_plan: PlanKey | null;
+  foodie_subscription_status: SubscriptionStatus;
   verification_status: VStatus;
   review_note: string | null;
   reviewed_at: string | null;
@@ -79,8 +98,8 @@ export type FoodieRow = {
   created_at: string;
 };
 
-// merchant_profiles.plan 是本分支新增的欄位，尚未反映在自動產生的 types.ts；
-// settlements 資料表同理。重新產生型別後即可移除這層轉型。
+// settlements、submissions、submission_photos 是本分支新增的資料表，尚未反映在
+// 自動產生的 types.ts。重新產生型別後即可移除這層轉型。
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const rawSupabase = supabase as any;
 
@@ -89,12 +108,12 @@ export function useMerchants(enabled: boolean) {
     queryKey: ["console-merchants"],
     enabled,
     queryFn: async () => {
-      const { data, error } = await rawSupabase
+      const { data, error } = await supabase
         .from("merchant_profiles")
         .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as MerchantRow[];
+      return (data ?? []) as unknown as MerchantRow[];
     },
   });
 }

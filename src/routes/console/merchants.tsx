@@ -20,7 +20,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PLANS, useCampaigns, useMerchants, type MerchantRow } from "./-data";
-import { MerchantDialog, PlanBadge, PlanSelect, StatusBadge, UNSET, useReviewActions } from "./-ui";
+import {
+  MerchantDialog,
+  PlanBadge,
+  PlanSelect,
+  StatusBadge,
+  SubscriptionBadge,
+  UNSET,
+  useReviewActions,
+} from "./-ui";
 
 export const Route = createFileRoute("/console/merchants")({
   component: Merchants,
@@ -52,22 +60,22 @@ function Merchants() {
     )
     .filter((m) => {
       if (planFilter === "全部") return true;
-      if (planFilter === UNSET) return !m.plan;
-      return m.plan === planFilter;
+      if (planFilter === UNSET) return !m.foodie_plan;
+      return m.foodie_plan === planFilter;
     })
     .filter((m) => statusFilter === "全部" || m.verification_status === statusFilter);
 
   const campaignCount = (userId: string) => cList.filter((c) => c.merchant_id === userId).length;
 
   const planCards = PLANS.map((p) => {
-    const list = all.filter((m) => m.plan === p.key);
+    const list = all.filter((m) => m.foodie_plan === p.key);
     return {
       ...p,
       count: list.length,
       pending: list.filter((m) => m.verification_status === "pending").length,
     };
   });
-  const unsetCount = all.filter((m) => !m.plan).length;
+  const unsetCount = all.filter((m) => !m.foodie_plan).length;
 
   return (
     <div className="space-y-6">
@@ -98,7 +106,7 @@ function Merchants() {
             onClick={() => setPlanFilter(planFilter === p.key ? "全部" : p.key)}
           >
             <CardHeader className="pb-1">
-              <p className="text-sm font-semibold text-[#3F2E1E]">{p.key}</p>
+              <p className="text-sm font-semibold text-[#3F2E1E]">{p.label}</p>
               <p className="text-xs text-[#A08E7C]">{p.desc}</p>
             </CardHeader>
             <CardContent>
@@ -158,7 +166,7 @@ function Merchants() {
                 <SelectItem value="全部">全部方案</SelectItem>
                 {PLANS.map((p) => (
                   <SelectItem key={p.key} value={p.key}>
-                    {p.key}
+                    {p.label}
                   </SelectItem>
                 ))}
                 <SelectItem value={UNSET}>{UNSET}</SelectItem>
@@ -172,6 +180,7 @@ function Merchants() {
               <TableRow>
                 <TableHead>店名</TableHead>
                 <TableHead>方案別</TableHead>
+                <TableHead>訂閱狀態</TableHead>
                 <TableHead>設定方案</TableHead>
                 <TableHead>聯絡人</TableHead>
                 <TableHead>地區</TableHead>
@@ -185,10 +194,13 @@ function Merchants() {
                 <TableRow key={m.id}>
                   <TableCell className="font-medium text-[#3F2E1E]">{m.store_name}</TableCell>
                   <TableCell>
-                    <PlanBadge plan={m.plan} />
+                    <PlanBadge plan={m.foodie_plan} />
                   </TableCell>
                   <TableCell>
-                    <PlanSelect value={m.plan} onChange={(v) => setPlan(m.id, v)} />
+                    <SubscriptionBadge status={m.foodie_subscription_status} />
+                  </TableCell>
+                  <TableCell>
+                    <PlanSelect value={m.foodie_plan} onChange={(v) => setPlan(m.id, v)} />
                   </TableCell>
                   <TableCell>{m.contact_name ?? "—"}</TableCell>
                   <TableCell>{m.region ?? "—"}</TableCell>
@@ -207,7 +219,7 @@ function Merchants() {
               ))}
               {rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-[#A08E7C]">
+                  <TableCell colSpan={9} className="text-center text-[#A08E7C]">
                     {all.length === 0 ? "尚無商家資料" : "沒有符合條件的商家"}
                   </TableCell>
                 </TableRow>

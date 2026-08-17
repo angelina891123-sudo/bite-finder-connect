@@ -215,10 +215,10 @@ function Overview() {
 
     const planRows = [
       ...PLANS.map((p) => ({
-        name: p.key,
-        count: mList.filter((m) => (m as { plan?: string | null }).plan === p.key).length,
+        name: p.label,
+        count: mList.filter((m) => m.foodie_plan === p.key).length,
       })),
-      { name: "未設定", count: mList.filter((m) => !(m as { plan?: string | null }).plan).length },
+      { name: "未設定", count: mList.filter((m) => !m.foodie_plan).length },
     ]
       .map((r) => `<tr><td>${esc(r.name)}</td><td class="n">${r.count}</td></tr>`)
       .join("");

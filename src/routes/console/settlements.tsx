@@ -98,7 +98,7 @@ function Settlements() {
     setTarget(a);
     // 依該商家的方案別預填金額與抽成，Enterprise 為客製報價故留空由人工填寫
     const merchant = merchants.data?.find((m) => m.user_id === a.campaigns?.merchant_id);
-    const plan = planOf(merchant?.plan);
+    const plan = planOf(merchant?.foodie_plan);
     setAmount(plan?.price != null ? String(plan.price) : "");
     setFee(plan?.platformFee != null ? String(plan.platformFee) : "");
     setNote("");
@@ -352,11 +352,11 @@ function Settlements() {
             </p>
             {(() => {
               const m = merchants.data?.find((x) => x.user_id === target?.campaigns?.merchant_id);
-              const plan = planOf(m?.plan);
+              const plan = planOf(m?.foodie_plan);
               return (
                 <p className="rounded-md border border-[#EFE3D6] bg-[#FDF7F0] px-3 py-2 text-xs text-[#5C4630]">
                   {plan
-                    ? `方案 ${plan.key}：${plan.desc}${plan.price == null ? "（金額需人工填寫）" : "，已自動預填"}`
+                    ? `方案 ${plan.label}：${plan.desc}${plan.price == null ? "（金額需人工填寫）" : "，已自動預填"}`
                     : "此商家尚未設定方案別，金額需人工填寫"}
                 </p>
               );

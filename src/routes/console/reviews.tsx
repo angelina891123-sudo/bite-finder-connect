@@ -96,7 +96,7 @@ function Reviews() {
                     <TableRow key={m.id}>
                       <TableCell className="font-medium text-[#3F2E1E]">{m.store_name}</TableCell>
                       <TableCell>
-                        <PlanBadge plan={m.plan} />
+                        <PlanBadge plan={m.foodie_plan} />
                       </TableCell>
                       <TableCell>{m.contact_name ?? "—"}</TableCell>
                       <TableCell className="text-sm text-[#A08E7C]">

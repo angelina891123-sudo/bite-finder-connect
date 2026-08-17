@@ -1,12 +1,11 @@
--- 營運後台第二階段：商家方案別、媒合審核權限收回平台管理員。
+-- 營運後台第二階段：媒合審核權限收回平台管理員。
 
--- 1. 商家方案別
--- 刻意用可自由填寫的 text 而非 enum：方案名稱由營運端決定，
--- 之後調整方案不需要再改資料庫結構。NULL 代表尚未設定。
-ALTER TABLE public.merchant_profiles ADD COLUMN IF NOT EXISTS plan text;
-COMMENT ON COLUMN public.merchant_profiles.plan IS '商家方案別，例如 基本／進階／旗艦；NULL 為未設定';
-
-CREATE INDEX IF NOT EXISTS idx_merchant_profiles_plan ON public.merchant_profiles(plan);
+-- 1. 移除本分支早期新增的 merchant_profiles.plan
+-- 這個欄位原本要給營運後台記錄方案別，但 main 已經有 foodie_plan（enum，
+-- 商家後台訂閱時寫入）。兩個欄位並存會讓兩邊看到的方案不一致，
+-- 因此營運後台改為讀寫 foodie_plan，這裡把多餘的欄位清掉。
+DROP INDEX IF EXISTS public.idx_merchant_profiles_plan;
+ALTER TABLE public.merchant_profiles DROP COLUMN IF EXISTS plan;
 
 -- 2. 媒合審核權限收回平台管理員
 -- 原本的規則允許「平台管理員 或 案件所屬商家」更新申請，商家因此能自行核准。
