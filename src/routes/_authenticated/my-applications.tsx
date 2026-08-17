@@ -367,7 +367,8 @@ function MyApplications() {
                         )}
                       </div>
                     )}
-                    {r.completed && (
+                    {/* 成效截圖與成果連結同樣鎖在素材審核通過之後。 */}
+                    {r.completed && matStatus === "approved" && (
                       <div className="rounded-lg border border-border bg-background p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="text-xs font-semibold">
