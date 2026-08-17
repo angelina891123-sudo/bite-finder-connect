@@ -72,4 +72,4 @@ export const REGIONS = [
   "其他",
 ];
 
-export const COLLAB_TYPES = ["IG 貼文", "IG 限動", "短影音 Reels", "YouTube 影片", "部落格圖文", "Google 評論"];
+export const COLLAB_TYPES = ["IG 貼文", "IG 限動", "短影音 Reels", "TikTok 短影音", "YouTube 影片", "部落格圖文", "Google 評論"];

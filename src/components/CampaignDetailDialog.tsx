@@ -84,11 +84,11 @@ export function CampaignDetailDialog({
             label="粉絲門檻"
             value={`${(campaign?.min_followers ?? 0).toLocaleString()} 人・名額 ${campaign?.slots ?? 0}`}
           />
-          <Row icon={CalendarDays} label="截止日" value={campaign?.deadline ?? "無截止日"} />
+          <Row icon={CalendarDays} label="預計上線日期" value={campaign?.deadline ?? "未提供"} />
         </div>
 
         <div>
-          <p className="mb-1 text-sm font-semibold">案件說明</p>
+          <p className="mb-1 text-sm font-semibold">文案需求</p>
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
             {campaign?.description?.trim() || "商家尚未提供詳細說明。"}
           </p>

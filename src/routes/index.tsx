@@ -260,7 +260,7 @@ function Index() {
                   </p>
                   {c.deadline && (
                     <p className="flex items-center gap-2">
-                      <CalendarDays className="h-4 w-4 text-primary" /> 截止 {c.deadline}
+                      <CalendarDays className="h-4 w-4 text-primary" /> 預計上線 {c.deadline}
                     </p>
                   )}
                 </CardContent>

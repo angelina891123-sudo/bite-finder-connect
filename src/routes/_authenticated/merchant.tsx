@@ -1207,8 +1207,9 @@ function CampaignFormDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label>申請截止日</Label>
+            <Label>預計上線日期</Label>
             <Input type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
+            <p className="text-xs text-muted-foreground">請預留 7-14 工作天</p>
           </div>
           <div className="space-y-1.5">
             <Label>案件照片（最多 {MAX_PHOTOS} 張）</Label>
@@ -1258,11 +1259,11 @@ function CampaignFormDialog({
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>案件說明</Label>
+            <Label>文案需求</Label>
             <Textarea
               required
               rows={4}
-              placeholder="說明合作內容、拍攝需求、到店時段等"
+              placeholder="說明文案需求、拍攝需求、到店時段等"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
