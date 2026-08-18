@@ -5,11 +5,12 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import {
-  canEditMaterial,
+  canEditDelivery,
+  deliveryStageLabel,
   isExpired,
-  MATERIAL_LABEL,
+  SUBMISSION_LABEL,
   todayISO,
-  type MaterialStatus,
+  type SubmissionStatus,
 } from "@/lib/campaign";
 import { SiteHeader } from "@/components/SiteHeader";
 import { FoodieProfileForm } from "@/components/FoodieProfileForm";
@@ -57,11 +58,17 @@ type Row = {
   visited?: boolean | null;
   // 成效截圖，於 20260814140000 migration 新增。
   result_images?: string[] | null;
-  // 素材審核，於 20260817140000_material_review.sql 新增。
-  material_status?: MaterialStatus | null;
+  // 素材審核，於 20260817140000_material_review.sql 新增；文案／素材／商家確稿
+  // 三段各自獨立審核，見 caption_status / media_status / merchant_review_status。
   material_caption?: string | null;
   material_media?: string[] | null;
-  material_note?: string | null;
+  caption_status?: SubmissionStatus | null;
+  media_status?: SubmissionStatus | null;
+  caption_review_note?: string | null;
+  media_review_note?: string | null;
+  merchant_review_status?: SubmissionStatus | null;
+  merchant_review_note?: string | null;
+  published_at?: string | null;
   campaigns: CampaignDetail | null;
 };
 
@@ -113,7 +120,7 @@ function MyApplications() {
     }
     setBusy(true);
     const now = new Date().toISOString();
-    // 交付成果連結即視為完成合作；清空連結則退回進行中。
+    // 交付成果連結即視為完成合作、也視為發文；清空連結則退回進行中。
     const { error } = await supabase
       .from("applications")
       .update({
@@ -121,6 +128,7 @@ function MyApplications() {
         submitted_at: value ? now : null,
         completed: !!value,
         completed_at: value ? now : null,
+        published_at: value ? now : null,
       })
       .eq("id", uploadTarget.id);
     setBusy(false);
@@ -210,9 +218,11 @@ function MyApplications() {
       return;
     }
     setBusy(true);
+    // 文案/素材有變動時，DB trigger 會自動把 caption_status/media_status 轉回
+    // submitted，不需要在這裡手動指定審核狀態。
     const { error } = await supabase
       .from("applications")
-      .update({ material_caption: caption.trim(), material_status: "admin_pending" })
+      .update({ material_caption: caption.trim() })
       .eq("id", matTarget.id);
     setBusy(false);
     if (error) {
@@ -287,7 +297,10 @@ function MyApplications() {
           <div className="space-y-3">
             {rows.map((r) => {
               const s = statusOf(r);
-              const matStatus = (r.material_status ?? "draft") as MaterialStatus;
+              const deliveryStatus = deliveryStageLabel(r);
+              const deliveryApproved =
+                (r.merchant_review_status ?? "draft") === "approved";
+              const deliveryEditable = canEditDelivery(r);
               return (
                 <Card key={r.id}>
                   <CardHeader className="pb-2">
@@ -341,13 +354,11 @@ function MyApplications() {
                           <p className="text-xs font-semibold">
                             素材審核
                             <span className="ml-1 font-normal text-muted-foreground">
-                              文案與圖片／影片，需通過平台與商家審核才能上傳成果
+                              文案與圖片／影片，需通過平台與商家審核才能發文
                             </span>
                           </p>
                           <div className="flex items-center gap-2">
-                            <Badge variant={MATERIAL_LABEL[matStatus].variant}>
-                              {MATERIAL_LABEL[matStatus].label}
-                            </Badge>
+                            <Badge variant={deliveryStatus.variant}>{deliveryStatus.label}</Badge>
                             <Button
                               size="sm"
                               variant="outline"
@@ -356,19 +367,28 @@ function MyApplications() {
                                 setMatTarget(r);
                               }}
                             >
-                              {canEditMaterial(matStatus) ? "上傳／送審素材" : "查看素材"}
+                              {deliveryEditable ? "上傳／送審素材" : "查看素材"}
                             </Button>
                           </div>
                         </div>
-                        {r.material_note && (
-                          <p className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
-                            退件原因：{r.material_note}
-                          </p>
+                        {((r.caption_status ?? "draft") === "revising" ||
+                          (r.media_status ?? "draft") === "revising" ||
+                          (r.merchant_review_status ?? "draft") === "revising") && (
+                          <div className="mt-2 space-y-1 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+                            {(r.caption_status ?? "draft") === "revising" && r.caption_review_note && (
+                              <p>文案退件原因：{r.caption_review_note}</p>
+                            )}
+                            {(r.media_status ?? "draft") === "revising" && r.media_review_note && (
+                              <p>素材退件原因：{r.media_review_note}</p>
+                            )}
+                            {(r.merchant_review_status ?? "draft") === "revising" &&
+                              r.merchant_review_note && <p>商家退件原因：{r.merchant_review_note}</p>}
+                          </div>
                         )}
                       </div>
                     )}
-                    {/* 成效截圖與成果連結同樣鎖在素材審核通過之後。 */}
-                    {r.completed && matStatus === "approved" && (
+                    {/* 成效截圖與成果連結同樣鎖在商家確稿之後。 */}
+                    {r.completed && deliveryApproved && (
                       <div className="rounded-lg border border-border bg-background p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="text-xs font-semibold">
@@ -411,7 +431,7 @@ function MyApplications() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={r.status !== "approved" || matStatus !== "approved"}
+                        disabled={r.status !== "approved" || !deliveryApproved}
                         onClick={() => {
                           setUrl(r.submission_url ?? "");
                           setUploadTarget(r);
@@ -428,7 +448,7 @@ function MyApplications() {
                     {r.status === "pending" && (
                       <p className="text-xs text-muted-foreground">案件核准後即可上傳成果連結。</p>
                     )}
-                    {r.status === "approved" && matStatus !== "approved" && (
+                    {r.status === "approved" && !deliveryApproved && (
                       <p className="text-xs text-muted-foreground">
                         素材通過平台與商家審核後，才能上傳成果連結與成效截圖。
                       </p>
@@ -468,18 +488,29 @@ function MyApplications() {
           </DialogHeader>
 
           {(() => {
-            const st = (matTarget?.material_status ?? "draft") as MaterialStatus;
-            const editable = canEditMaterial(st);
+            const editable = matTarget ? canEditDelivery(matTarget) : false;
+            const captionStatus = (matTarget?.caption_status ?? "draft") as SubmissionStatus;
+            const mediaStatus = (matTarget?.media_status ?? "draft") as SubmissionStatus;
             return (
               <>
-                {matTarget?.material_note && (
+                {captionStatus === "revising" && matTarget?.caption_review_note && (
                   <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-                    退件原因：{matTarget.material_note}
+                    文案退件原因：{matTarget.caption_review_note}
+                  </p>
+                )}
+                {mediaStatus === "revising" && matTarget?.media_review_note && (
+                  <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                    素材退件原因：{matTarget.media_review_note}
                   </p>
                 )}
 
                 <div className="space-y-1.5">
-                  <Label>文案</Label>
+                  <div className="flex items-center gap-2">
+                    <Label>文案</Label>
+                    <Badge variant={SUBMISSION_LABEL[captionStatus].variant}>
+                      {SUBMISSION_LABEL[captionStatus].label}
+                    </Badge>
+                  </div>
                   <Textarea
                     rows={5}
                     value={caption}
@@ -490,7 +521,12 @@ function MyApplications() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>圖片／影片素材</Label>
+                  <div className="flex items-center gap-2">
+                    <Label>圖片／影片素材</Label>
+                    <Badge variant={SUBMISSION_LABEL[mediaStatus].variant}>
+                      {SUBMISSION_LABEL[mediaStatus].label}
+                    </Badge>
+                  </div>
                   {matTarget?.material_media?.length ? (
                     <div className="flex flex-wrap gap-2">
                       {matTarget.material_media.map((src) => (

@@ -36,32 +36,58 @@ export function matchesTier(label: string, minFollowers: number) {
 }
 
 /**
- * 素材審核狀態。上傳成果連結／成效截圖前，須先經管理員、再經商家兩階段審核。
- * 對應 20260817140000_material_review.sql 的 applications.material_status。
+ * 文案／素材／商家確稿的審核狀態，applications.caption_status、media_status、
+ * merchant_review_status 共用同一個 submission_status enum。
+ * 流程：Foodie 送出文案＋素材 → 平台分別審核文案與素材（各自 approved 才算過）
+ * → 兩者都過，自動進入商家確稿 → 商家 approved 後 Foodie 才能標記發文時間。
  */
-export type MaterialStatus =
-  | "draft"
-  | "admin_pending"
-  | "admin_rejected"
-  | "merchant_pending"
-  | "merchant_rejected"
-  | "approved";
+export type SubmissionStatus = "draft" | "submitted" | "revising" | "approved";
 
-export const MATERIAL_LABEL: Record<
-  MaterialStatus,
+export const SUBMISSION_LABEL: Record<
+  SubmissionStatus,
   { label: string; variant: "default" | "secondary" | "destructive" }
 > = {
   draft: { label: "尚未送審", variant: "secondary" },
-  admin_pending: { label: "平台審核中", variant: "secondary" },
-  admin_rejected: { label: "平台退件", variant: "destructive" },
-  merchant_pending: { label: "商家審核中", variant: "secondary" },
-  merchant_rejected: { label: "商家退件", variant: "destructive" },
-  approved: { label: "素材已通過", variant: "default" },
+  submitted: { label: "審核中", variant: "secondary" },
+  revising: { label: "需修改", variant: "destructive" },
+  approved: { label: "已通過", variant: "default" },
 };
 
-/** Foodie 可編輯並（重新）送審的狀態。 */
-export function canEditMaterial(s: MaterialStatus) {
-  return s === "draft" || s === "admin_rejected" || s === "merchant_rejected";
+export type DeliveryRow = {
+  caption_status?: SubmissionStatus | null;
+  media_status?: SubmissionStatus | null;
+  merchant_review_status?: SubmissionStatus | null;
+};
+
+/** Foodie 看到的整體進度徽章：平台審核（文案＋素材）過了才會進商家確稿。 */
+export function deliveryStageLabel(
+  r: DeliveryRow,
+): { label: string; variant: "default" | "secondary" | "destructive" } {
+  const captionStatus = r.caption_status ?? "draft";
+  const mediaStatus = r.media_status ?? "draft";
+  const merchantStatus = r.merchant_review_status ?? "draft";
+  if (captionStatus === "revising" || mediaStatus === "revising") {
+    return { label: "平台退件，需修改", variant: "destructive" };
+  }
+  if (captionStatus !== "approved" || mediaStatus !== "approved") {
+    return { label: "平台審核中", variant: "secondary" };
+  }
+  if (merchantStatus === "revising") {
+    return { label: "商家退件，需修改", variant: "destructive" };
+  }
+  if (merchantStatus !== "approved") {
+    return { label: "商家確稿中", variant: "secondary" };
+  }
+  return { label: "已通過，可發佈", variant: "default" };
+}
+
+/** Foodie 可編輯文案／素材並（重新）送審：只要還沒同時送到商家審核就能改。 */
+export function canEditDelivery(r: DeliveryRow) {
+  return (
+    r.caption_status !== "submitted" &&
+    r.media_status !== "submitted" &&
+    r.merchant_review_status !== "submitted"
+  );
 }
 
 export const APPLIED_LABEL: Record<string, string> = {

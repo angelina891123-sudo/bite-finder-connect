@@ -1,7 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Menu, ChevronDown, Compass, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth";
 
 const NAV = [
   { label: "產品功能", to: "/" },
@@ -28,6 +31,22 @@ function Logo() {
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
+  const { user } = useAuth();
+
+  // 素材被平台或商家退件、需要 Foodie 重新編輯送審的筆數，用來在導覽列提示。
+  const { data: needsAttentionCount = 0 } = useQuery({
+    queryKey: ["my-applications-needs-attention", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("applications")
+        .select("id", { count: "exact", head: true })
+        .eq("creator_id", user!.id)
+        .or("caption_status.eq.revising,media_status.eq.revising,merchant_review_status.eq.revising");
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
 
   const foodieMenu = (
     <div className="w-72 overflow-hidden rounded-xl border border-border bg-popover p-2 shadow-lg">
@@ -47,9 +66,20 @@ export function SiteHeader() {
         className="flex gap-3 rounded-lg p-3 transition-colors hover:bg-accent"
       >
         <ClipboardList className="mt-0.5 h-5 w-5 text-primary" />
-        <span>
-          <span className="block text-sm font-semibold text-foreground">我的申請</span>
-          <span className="block text-xs text-muted-foreground">Foodie 登入後查看申請進度與審核結果</span>
+        <span className="flex-1">
+          <span className="flex items-center gap-1.5">
+            <span className="block text-sm font-semibold text-foreground">我的申請</span>
+            {needsAttentionCount > 0 && (
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
+                {needsAttentionCount}
+              </span>
+            )}
+          </span>
+          <span className="block text-xs text-muted-foreground">
+            {needsAttentionCount > 0
+              ? `${needsAttentionCount} 筆素材被退件，需要重新編輯送審`
+              : "Foodie 登入後查看申請進度與審核結果"}
+          </span>
         </span>
       </Link>
     </div>
@@ -72,9 +102,12 @@ export function SiteHeader() {
           ))}
 
           <div className="group relative">
-            <button className="flex items-center gap-1 rounded-full bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground transition-colors group-hover:text-primary">
+            <button className="relative flex items-center gap-1 rounded-full bg-accent px-3 py-1.5 text-sm font-semibold text-accent-foreground transition-colors group-hover:text-primary">
               Foodie媒合專區
               <ChevronDown className="h-4 w-4" />
+              {needsAttentionCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-destructive" />
+              )}
             </button>
             <div className="pointer-events-none absolute right-0 top-full pt-3 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
               {foodieMenu}

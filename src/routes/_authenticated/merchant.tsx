@@ -22,7 +22,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth, REGIONS, COLLAB_TYPES } from "@/lib/auth";
 import { FOOD_TYPES, MAX_FOOD_TYPES, startOfMonthISO } from "@/lib/campaign";
 import { uploadCampaignPhotos } from "@/lib/campaign-photos";
-import { MaterialReviewList } from "@/components/MaterialReviewList";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,10 +103,13 @@ type Application = {
   visit_code?: string | null;
   visited?: boolean | null;
   result_images?: string[] | null;
-  material_status?: string | null;
   material_caption?: string | null;
   material_media?: string[] | null;
   material_submitted_at?: string | null;
+  caption_status?: string | null;
+  media_status?: string | null;
+  merchant_review_status?: string | null;
+  merchant_review_note?: string | null;
 };
 
 function MerchantBackoffice() {
@@ -245,8 +247,9 @@ function MerchantBackoffice() {
     void qc.invalidateQueries({ queryKey: ["merchant-applications", user?.id] });
   };
 
-  // 第二階段審核：僅處理管理員已放行（merchant_pending）的素材。
-  const reviewMaterial = async (id: string, pass: boolean, note: string) => {
+  // 商家確稿：文案與素材都已通過平台審核後才會出現在這裡。
+  const [merchantNotes, setMerchantNotes] = useState<Record<string, string>>({});
+  const reviewDelivery = async (id: string, pass: boolean, note: string) => {
     if (!pass && !note.trim()) {
       toast.error("退件必須填寫原因");
       return;
@@ -254,21 +257,22 @@ function MerchantBackoffice() {
     const { error } = await supabase
       .from("applications")
       .update({
-        material_status: pass ? "approved" : "merchant_rejected",
-        material_note: pass ? null : note.trim(),
+        merchant_review_status: pass ? "approved" : "revising",
+        merchant_review_note: pass ? null : note.trim(),
+        merchant_reviewed_at: new Date().toISOString(),
       })
       .eq("id", id);
     if (error) {
       toast.error(error.message);
       return;
     }
-    toast.success(pass ? "素材已通過，Foodie 可上傳成果" : "已退件");
+    toast.success(pass ? "已確稿，Foodie 可標記發文" : "已退件");
     void qc.invalidateQueries({ queryKey: ["merchant-applications", user?.id] });
   };
 
   const pendingMaterials = applications.filter(
     (a) =>
-      a.material_status === "merchant_pending" &&
+      a.merchant_review_status === "submitted" &&
       campaigns.some((c) => c.id === a.campaign_id),
   );
 
@@ -532,22 +536,75 @@ function MerchantBackoffice() {
           <div>
             <h1 className="mb-1 text-2xl font-bold">素材審核</h1>
             <p className="mb-6 text-sm text-muted-foreground">
-              Foodie 送出、且已通過平台初審的文案與素材。通過後 Foodie 才能上傳成果連結。
+              Foodie 送出、且文案與素材都已通過平台審核的內容。確稿後 Foodie 才能標記發文。
             </p>
-            <MaterialReviewList
-              rows={pendingMaterials.map((a) => ({
-                id: a.id,
-                material_caption: a.material_caption ?? null,
-                material_media: a.material_media ?? null,
-                material_submitted_at: a.material_submitted_at ?? null,
-                campaigns: (() => {
+            {pendingMaterials.length === 0 ? (
+              <p className="rounded-lg border border-dashed p-10 text-center text-muted-foreground">
+                目前沒有待確稿的素材。通過平台審核後會出現在這裡。
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {pendingMaterials.map((a) => {
                   const c = campaigns.find((x) => x.id === a.campaign_id);
-                  return c ? { title: c.title, restaurant_name: c.restaurant_name } : null;
-                })(),
-              }))}
-              onReview={reviewMaterial}
-              emptyText="目前沒有待審核的素材。通過平台初審後會出現在這裡。"
-            />
+                  return (
+                    <Card key={a.id}>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base">{c?.title ?? "案件"}</CardTitle>
+                        <p className="text-xs text-muted-foreground">
+                          {a.material_submitted_at
+                            ? `送審於 ${new Date(a.material_submitted_at).toLocaleString()}`
+                            : ""}
+                        </p>
+                      </CardHeader>
+                      <CardContent className="space-y-3 text-sm">
+                        <div>
+                          <p className="mb-1 text-xs font-semibold">文案</p>
+                          <p className="whitespace-pre-wrap rounded-md border border-border p-3 text-muted-foreground">
+                            {a.material_caption?.trim() || "（未提供）"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="mb-1 text-xs font-semibold">素材（{a.material_media?.length ?? 0}）</p>
+                          <div className="flex flex-wrap gap-2">
+                            {(a.material_media ?? []).map((src) => (
+                              <a
+                                key={src}
+                                href={src}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded-md border border-border px-3 py-2 text-xs text-primary underline"
+                              >
+                                檢視素材
+                              </a>
+                            ))}
+                            {(a.material_media?.length ?? 0) === 0 && (
+                              <span className="text-xs text-muted-foreground">未上傳</span>
+                            )}
+                          </div>
+                        </div>
+                        <Input
+                          placeholder="退件原因（退件時必填）"
+                          value={merchantNotes[a.id] ?? ""}
+                          onChange={(e) => setMerchantNotes((p) => ({ ...p, [a.id]: e.target.value }))}
+                        />
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={() => reviewDelivery(a.id, true, "")}>
+                            確稿通過
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => reviewDelivery(a.id, false, merchantNotes[a.id] ?? "")}
+                          >
+                            退件
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ) : section === "performance" ? (
           <PerformanceSection campaigns={campaigns} applications={applications} creators={creators} />

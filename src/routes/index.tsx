@@ -257,6 +257,9 @@ function Index() {
             <Button size="lg" variant="outline" onClick={() => navigate({ to: "/merchant" })}>
               我是商家，前往後台
             </Button>
+            <Button size="lg" variant="outline" onClick={() => navigate({ to: "/my-applications" })}>
+              我是 Foodie，前往後台
+            </Button>
           </div>
         </div>
       </section>

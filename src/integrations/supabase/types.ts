@@ -30,6 +30,18 @@ export type Database = {
           material_note: string | null
           material_submitted_at: string | null
           material_reviewed_at: string | null
+          caption_status: Database["public"]["Enums"]["submission_status"]
+          media_status: Database["public"]["Enums"]["submission_status"]
+          caption_reviewed_at: string | null
+          media_reviewed_at: string | null
+          caption_review_note: string | null
+          media_review_note: string | null
+          material_caption_prev: string | null
+          selected_media: string[]
+          merchant_review_status: Database["public"]["Enums"]["submission_status"]
+          merchant_reviewed_at: string | null
+          merchant_review_note: string | null
+          published_at: string | null
           status: Database["public"]["Enums"]["application_status"]
           submission_url: string | null
           submitted_at: string | null
@@ -53,6 +65,18 @@ export type Database = {
           material_note?: string | null
           material_submitted_at?: string | null
           material_reviewed_at?: string | null
+          caption_status?: Database["public"]["Enums"]["submission_status"]
+          media_status?: Database["public"]["Enums"]["submission_status"]
+          caption_reviewed_at?: string | null
+          media_reviewed_at?: string | null
+          caption_review_note?: string | null
+          media_review_note?: string | null
+          material_caption_prev?: string | null
+          selected_media?: string[]
+          merchant_review_status?: Database["public"]["Enums"]["submission_status"]
+          merchant_reviewed_at?: string | null
+          merchant_review_note?: string | null
+          published_at?: string | null
           status?: Database["public"]["Enums"]["application_status"]
           submission_url?: string | null
           submitted_at?: string | null
@@ -76,6 +100,18 @@ export type Database = {
           material_note?: string | null
           material_submitted_at?: string | null
           material_reviewed_at?: string | null
+          caption_status?: Database["public"]["Enums"]["submission_status"]
+          media_status?: Database["public"]["Enums"]["submission_status"]
+          caption_reviewed_at?: string | null
+          media_reviewed_at?: string | null
+          caption_review_note?: string | null
+          media_review_note?: string | null
+          material_caption_prev?: string | null
+          selected_media?: string[]
+          merchant_review_status?: Database["public"]["Enums"]["submission_status"]
+          merchant_reviewed_at?: string | null
+          merchant_review_note?: string | null
+          published_at?: string | null
           status?: Database["public"]["Enums"]["application_status"]
           submission_url?: string | null
           submitted_at?: string | null
@@ -465,6 +501,7 @@ export type Database = {
       foodie_plan: "basic" | "pro" | "enterprise"
       foodie_subscription_status: "inactive" | "active" | "expired"
       subscription_plan_type: "basic" | "pro" | "enterprise"
+      submission_status: "draft" | "submitted" | "revising" | "approved"
       verification_status: "pending" | "approved" | "rejected"
     }
     CompositeTypes: {
@@ -599,6 +636,7 @@ export const Constants = {
       foodie_plan: ["basic", "pro", "enterprise"],
       foodie_subscription_status: ["inactive", "active", "expired"],
       subscription_plan_type: ["basic", "pro", "enterprise"],
+      submission_status: ["draft", "submitted", "revising", "approved"],
       verification_status: ["pending", "approved", "rejected"],
     },
   },

@@ -100,15 +100,15 @@ function AdminPage() {
       const { data, error } = await supabase
         .from("applications")
         .select("*,campaigns(title,restaurant_name)")
-        .eq("material_status", "admin_pending")
+        .or("caption_status.eq.submitted,media_status.eq.submitted")
         .order("material_submitted_at", { ascending: true });
       if (error) throw error;
       return data ?? [];
     },
   });
 
-  // 第一階段審核：通過則轉交商家，退件則回到 Foodie 手上。
-  const reviewMaterial = async (id: string, pass: boolean, note: string) => {
+  // 文案與素材分開審核，各自通過後才會（自動）進入商家確稿階段。
+  const reviewCaption = async (id: string, pass: boolean, note: string) => {
     if (!pass && !note.trim()) {
       toast.error("退件必須填寫原因");
       return;
@@ -116,12 +116,31 @@ function AdminPage() {
     const { error } = await supabase
       .from("applications")
       .update({
-        material_status: pass ? "merchant_pending" : "admin_rejected",
-        material_note: pass ? null : note.trim(),
+        caption_status: pass ? "approved" : "revising",
+        caption_review_note: pass ? null : note.trim(),
+        caption_reviewed_at: new Date().toISOString(),
       })
       .eq("id", id);
     if (error) { toast.error(error.message); return; }
-    toast.success(pass ? "已通過，將轉交商家審核" : "已退件");
+    toast.success(pass ? "文案已通過" : "文案已退件");
+    void qc.invalidateQueries({ queryKey: ["admin-materials"] });
+  };
+
+  const reviewMedia = async (id: string, pass: boolean, note: string) => {
+    if (!pass && !note.trim()) {
+      toast.error("退件必須填寫原因");
+      return;
+    }
+    const { error } = await supabase
+      .from("applications")
+      .update({
+        media_status: pass ? "approved" : "revising",
+        media_review_note: pass ? null : note.trim(),
+        media_reviewed_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success(pass ? "素材已通過" : "素材已退件");
     void qc.invalidateQueries({ queryKey: ["admin-materials"] });
   };
 
@@ -350,7 +369,8 @@ function AdminPage() {
           <TabsContent value="materials">
             <MaterialReviewList
               rows={materials.data ?? []}
-              onReview={reviewMaterial}
+              onReviewCaption={reviewCaption}
+              onReviewMedia={reviewMedia}
               emptyText="目前沒有待審核的素材。"
             />
           </TabsContent>
