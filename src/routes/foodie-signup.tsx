@@ -46,6 +46,7 @@ function FoodieSignup() {
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
 
   const [f, setF] = useState({
     nickname: "",
@@ -174,6 +175,7 @@ function FoodieSignup() {
 
     setBusy(false);
     setDone(true);
+    setNeedsEmailVerification(!data.session);
     if (data.session) setTimeout(() => navigate({ to: "/my-applications" }), 3000);
   };
 
@@ -233,13 +235,24 @@ function FoodieSignup() {
                 <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-accent text-primary">
                   <Check className="h-8 w-8" />
                 </div>
-                <h3 className="text-xl font-semibold">請前往信箱完成驗證</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  我們已寄出驗證信到 <b className="text-foreground">{f.email}</b>，請點擊信中的連結完成 Email 驗證後再登入。
-                  <br />
-                  驗證完成後，我們會依照你的粉絲數與內容偏好為你媒合合適的餐廳業配案件。
-                </p>
-                <p className="mt-3 text-xs text-muted-foreground">沒收到信？請檢查垃圾郵件匣或稍後再試。</p>
+                {needsEmailVerification ? (
+                  <>
+                    <h3 className="text-xl font-semibold">請前往信箱完成驗證</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                      我們已寄出驗證信到 <b className="text-foreground">{f.email}</b>，請點擊信中的連結完成 Email 驗證後再登入。
+                      <br />
+                      驗證完成後，資料將交由專人審核，通過後才能開始申請合作案件。
+                    </p>
+                    <p className="mt-3 text-xs text-muted-foreground">沒收到信？請檢查垃圾郵件匣或稍後再試。</p>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-xl font-semibold">資料已送出</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                      請耐心等候專人審核，結果將儘速通知您，謝謝。
+                    </p>
+                  </>
+                )}
                 <Button asChild className="mt-6">
                   <Link to="/">回到探索案件</Link>
                 </Button>

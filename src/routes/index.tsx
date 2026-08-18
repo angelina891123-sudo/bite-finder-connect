@@ -117,8 +117,8 @@ function Index() {
   });
 
   // 尚未建立 Foodie 資料時回傳 null，用來區分「沒填過」與「真的是 0」。
-  const { data: myFollowers } = useQuery({
-    queryKey: ["my-followers", user?.id],
+  const { data: myFoodieProfile } = useQuery({
+    queryKey: ["my-foodie-profile", user?.id],
     enabled: !!user,
     queryFn: async () => {
       const { data } = await supabase
@@ -126,16 +126,21 @@ function Index() {
         .select("*")
         .eq("user_id", user!.id)
         .maybeSingle();
-      if (!data) return null;
-      return Math.max(
-        data.ig_followers ?? 0,
-        data.threads_followers ?? 0,
-        data.youtube_subscribers ?? 0,
-        data.tiktok_followers ?? 0,
-        data.other_social_followers ?? 0,
-      );
+      return data ?? null;
     },
   });
+  const myFollowers =
+    myFoodieProfile === undefined
+      ? undefined
+      : myFoodieProfile === null
+        ? null
+        : Math.max(
+            myFoodieProfile.ig_followers ?? 0,
+            myFoodieProfile.threads_followers ?? 0,
+            myFoodieProfile.youtube_subscribers ?? 0,
+            myFoodieProfile.tiktok_followers ?? 0,
+            myFoodieProfile.other_social_followers ?? 0,
+          );
 
   // 已申請過的案件：campaign_id → 申請狀態
   const { data: appliedMap = {} } = useQuery({
@@ -153,6 +158,8 @@ function Index() {
   });
 
   const noProfile = myFollowers === null;
+  // 帳號審核中或審核未通過都不能申請合作案件。
+  const notApproved = !!myFoodieProfile && myFoodieProfile.verification_status !== "approved";
   // 粉絲數尚在載入時回傳 null，避免誤判成未達標而擋下申請。
   const belowThresholdFor = (c: Campaign) =>
     myFollowers === undefined ? null : (myFollowers ?? 0) < c.min_followers;
@@ -203,6 +210,15 @@ function Index() {
     }
     if (!isCreator) {
       toast.error("此帳號不是 Foodie 身分，請以 Foodie 帳號登入申請");
+      return;
+    }
+    // 帳號需先經平台審核通過才能申請合作案件。
+    if (myFoodieProfile && myFoodieProfile.verification_status !== "approved") {
+      toast.error(
+        myFoodieProfile.verification_status === "rejected"
+          ? "你的帳號審核未通過，請聯絡客服"
+          : "帳號審核中，通過後才能申請合作案件",
+      );
       return;
     }
     // 粉絲數未達案件門檻者不開放申請。
@@ -392,18 +408,20 @@ function Index() {
                   </Button>
                   <Button
                     className="flex-1"
-                    disabled={expired || !!applied || (below && !noProfile)}
+                    disabled={expired || !!applied || notApproved || (below && !noProfile)}
                     onClick={() => onApplyClick(c)}
                   >
                     {expired
                       ? "已截止"
                       : applied
                         ? (APPLIED_LABEL[applied] ?? "已申請")
-                        : noProfile
-                          ? "請先填寫資料"
-                          : below
-                            ? "未達標準"
-                            : "申請合作"}
+                        : notApproved
+                          ? "帳號審核中"
+                          : noProfile
+                            ? "請先填寫資料"
+                            : below
+                              ? "未達標準"
+                              : "申請合作"}
                   </Button>
                 </CardFooter>
               </Card>
@@ -430,6 +448,7 @@ function Index() {
             !detail ||
             isExpired(detail.deadline, today) ||
             !!appliedMap[detail.id] ||
+            notApproved ||
             (belowThresholdFor(detail) === true && !noProfile)
           }
           onClick={() => {
@@ -443,11 +462,13 @@ function Index() {
             ? "已截止"
             : detail && appliedMap[detail.id]
               ? (APPLIED_LABEL[appliedMap[detail.id]!] ?? "已申請")
-              : noProfile
-                ? "請先填寫資料"
-                : detail && belowThresholdFor(detail) === true
-                  ? "未達標準"
-                  : "申請合作"}
+              : notApproved
+                ? "帳號審核中"
+                : noProfile
+                  ? "請先填寫資料"
+                  : detail && belowThresholdFor(detail) === true
+                    ? "未達標準"
+                    : "申請合作"}
         </Button>
       </CampaignDetailDialog>
 
