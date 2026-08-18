@@ -190,9 +190,6 @@ function MerchantBackoffice() {
       return (data ?? []) as Campaign[];
     },
   });
-  const usedThisMonth = campaigns.filter((c) => c.created_at >= startOfMonthISO()).length;
-  const atCaseLimit = hasFoodiePlan && monthlyCaseLimit != null && usedThisMonth >= monthlyCaseLimit;
-
   const { data: applications = [] } = useQuery({
     queryKey: ["merchant-applications", user?.id],
     enabled: !!user,
@@ -205,6 +202,11 @@ function MerchantBackoffice() {
       return (data ?? []) as Application[];
     },
   });
+  // 方案額度是以「媒合到的 Foodie 數」計算，不是案件數：算本月已核准（媒合成功）的申請數。
+  const usedThisMonth = applications.filter(
+    (a) => a.status === "approved" && a.created_at >= startOfMonthISO(),
+  ).length;
+  const atCaseLimit = hasFoodiePlan && monthlyCaseLimit != null && usedThisMonth >= monthlyCaseLimit;
 
   const { data: creators = {} } = useQuery({
     queryKey: ["applicant-profiles", applications.map((a) => a.creator_id).join(",")],
@@ -390,7 +392,7 @@ function MerchantBackoffice() {
                     <FoodiePlanBadge plan={currentPlanType} status={subscriptionStatus} />
                     {hasFoodiePlan && monthlyCaseLimit != null && (
                       <Badge variant="outline" className="border-transparent bg-muted text-muted-foreground">
-                        {usedThisMonth} / {monthlyCaseLimit} 案件
+                        {usedThisMonth} / {monthlyCaseLimit} 位 Foodie
                       </Badge>
                     )}
                     <p className="text-sm text-muted-foreground">
@@ -420,7 +422,7 @@ function MerchantBackoffice() {
             <div className="grid gap-4 lg:grid-cols-2">
               {atCaseLimit && (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-destructive/40 bg-destructive/5 p-4 text-sm lg:col-span-2">
-                  <span>本月案件額度已使用完畢</span>
+                  <span>本月 Foodie 媒合額度已使用完畢</span>
                   <Button size="sm" variant="outline" onClick={() => setShowPlans(true)}>
                     查看其他方案
                   </Button>
@@ -700,7 +702,7 @@ type FoodiePlan = {
   /** 月費（NTD）；enterprise 為客製報價，未定案前不用假數字，故為 null。 */
   price: number | null;
   priceLabel: string;
-  /** 每月可建立的案件數；enterprise 額度客製，故為 null。 */
+  /** 每月可媒合的 Foodie 數；enterprise 額度客製，故為 null。 */
   monthlyCaseLimit: number | null;
   features: string[];
   cta: string;
@@ -715,7 +717,7 @@ const FOODIE_PLANS: FoodiePlan[] = [
     price: 750,
     priceLabel: "NT$750 / 月",
     monthlyCaseLimit: 5,
-    features: ["每月可建立 5 個媒合案件", "基礎創作者媒合", "查看創作者基本資料", "案件進度管理", "合作成效紀錄"],
+    features: ["每月可媒合 5 位 Foodie", "基礎創作者媒合", "查看創作者基本資料", "案件進度管理", "合作成效紀錄"],
     cta: "選擇 Basic",
   },
   {
@@ -725,7 +727,7 @@ const FOODIE_PLANS: FoodiePlan[] = [
     price: 1999,
     priceLabel: "NT$1,999 / 月",
     monthlyCaseLimit: 15,
-    features: ["每月可建立 15 個媒合案件", "基礎創作者媒合", "查看創作者基本資料", "案件進度管理", "合作成效紀錄"],
+    features: ["每月可媒合 15 位 Foodie", "基礎創作者媒合", "查看創作者基本資料", "案件進度管理", "合作成效紀錄"],
     cta: "選擇 Pro",
     highlighted: true,
   },
@@ -737,7 +739,7 @@ const FOODIE_PLANS: FoodiePlan[] = [
     priceLabel: "客製報價",
     monthlyCaseLimit: null,
     features: [
-      "更多媒合案件額度",
+      "更多 Foodie 媒合額度",
       "創作者媒合",
       "查看創作者資料",
       "案件進度管理",
@@ -1056,8 +1058,8 @@ function FoodieCheckoutPage({
             </ul>
             {plan.monthlyCaseLimit != null && (
               <div className="flex items-center justify-between border-t border-border pt-3 text-sm text-muted-foreground">
-                <span>每月案件額度</span>
-                <span>{plan.monthlyCaseLimit} 個</span>
+                <span>每月 Foodie 媒合額度</span>
+                <span>{plan.monthlyCaseLimit} 位</span>
               </div>
             )}
             <div className="flex items-center justify-between text-sm text-muted-foreground">
@@ -1395,7 +1397,7 @@ function CampaignFormDialog({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isEdit && monthlyCaseLimit != null && usedThisMonth >= monthlyCaseLimit) {
-      toast.error("本月案件額度已使用完畢");
+      toast.error("本月 Foodie 媒合額度已使用完畢");
       return;
     }
     if (form.deadline && form.deadline < minLaunchDateISO()) {
