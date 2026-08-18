@@ -17,13 +17,31 @@ export type Database = {
       applications: {
         Row: {
           campaign_id: string
+          caption_review_note: string | null
+          caption_reviewed_at: string | null
+          caption_status: Database["public"]["Enums"]["submission_status"]
           completed: boolean
           completed_at: string | null
           created_at: string
           creator_id: string
           id: string
+          material_caption: string | null
+          material_caption_prev: string | null
+          material_media: string[]
+          material_note: string | null
+          material_reviewed_at: string | null
+          material_status: string
+          material_submitted_at: string | null
+          media_review_note: string | null
+          media_reviewed_at: string | null
+          media_status: Database["public"]["Enums"]["submission_status"]
+          merchant_review_note: string | null
+          merchant_review_status: Database["public"]["Enums"]["submission_status"]
+          merchant_reviewed_at: string | null
           message: string | null
+          published_at: string | null
           result_images: string[]
+          selected_media: string[]
           status: Database["public"]["Enums"]["application_status"]
           submission_url: string | null
           submitted_at: string | null
@@ -34,13 +52,31 @@ export type Database = {
         }
         Insert: {
           campaign_id: string
+          caption_review_note?: string | null
+          caption_reviewed_at?: string | null
+          caption_status?: Database["public"]["Enums"]["submission_status"]
           completed?: boolean
           completed_at?: string | null
           created_at?: string
           creator_id: string
           id?: string
+          material_caption?: string | null
+          material_caption_prev?: string | null
+          material_media?: string[]
+          material_note?: string | null
+          material_reviewed_at?: string | null
+          material_status?: string
+          material_submitted_at?: string | null
+          media_review_note?: string | null
+          media_reviewed_at?: string | null
+          media_status?: Database["public"]["Enums"]["submission_status"]
+          merchant_review_note?: string | null
+          merchant_review_status?: Database["public"]["Enums"]["submission_status"]
+          merchant_reviewed_at?: string | null
           message?: string | null
+          published_at?: string | null
           result_images?: string[]
+          selected_media?: string[]
           status?: Database["public"]["Enums"]["application_status"]
           submission_url?: string | null
           submitted_at?: string | null
@@ -51,13 +87,31 @@ export type Database = {
         }
         Update: {
           campaign_id?: string
+          caption_review_note?: string | null
+          caption_reviewed_at?: string | null
+          caption_status?: Database["public"]["Enums"]["submission_status"]
           completed?: boolean
           completed_at?: string | null
           created_at?: string
           creator_id?: string
           id?: string
+          material_caption?: string | null
+          material_caption_prev?: string | null
+          material_media?: string[]
+          material_note?: string | null
+          material_reviewed_at?: string | null
+          material_status?: string
+          material_submitted_at?: string | null
+          media_review_note?: string | null
+          media_reviewed_at?: string | null
+          media_status?: Database["public"]["Enums"]["submission_status"]
+          merchant_review_note?: string | null
+          merchant_review_status?: Database["public"]["Enums"]["submission_status"]
+          merchant_reviewed_at?: string | null
           message?: string | null
+          published_at?: string | null
           result_images?: string[]
+          selected_media?: string[]
           status?: Database["public"]["Enums"]["application_status"]
           submission_url?: string | null
           submitted_at?: string | null
@@ -78,15 +132,23 @@ export type Database = {
       }
       campaigns: {
         Row: {
-          collab_type: string
+          address: string | null
+          collab_types: string[]
+          copy_must_avoid: string | null
+          copy_must_include: string | null
           cover_url: string | null
           created_at: string
           deadline: string | null
           description: string | null
+          food_types: string[]
+          hashtags: string[]
           id: string
           merchant_id: string
           min_followers: number
+          notes: string | null
           photos: string[]
+          primary_food_type: string | null
+          reference_link: string | null
           region: string
           restaurant_name: string | null
           reward: string
@@ -94,17 +156,28 @@ export type Database = {
           status: Database["public"]["Enums"]["campaign_status"]
           title: string
           updated_at: string
+          video_direction: string | null
+          video_must_avoid: string | null
+          video_must_include: string | null
         }
         Insert: {
-          collab_type: string
+          address?: string | null
+          collab_types?: string[]
+          copy_must_avoid?: string | null
+          copy_must_include?: string | null
           cover_url?: string | null
           created_at?: string
           deadline?: string | null
           description?: string | null
+          food_types?: string[]
+          hashtags?: string[]
           id?: string
           merchant_id: string
           min_followers?: number
+          notes?: string | null
           photos?: string[]
+          primary_food_type?: string | null
+          reference_link?: string | null
           region: string
           restaurant_name?: string | null
           reward: string
@@ -112,17 +185,28 @@ export type Database = {
           status?: Database["public"]["Enums"]["campaign_status"]
           title: string
           updated_at?: string
+          video_direction?: string | null
+          video_must_avoid?: string | null
+          video_must_include?: string | null
         }
         Update: {
-          collab_type?: string
+          address?: string | null
+          collab_types?: string[]
+          copy_must_avoid?: string | null
+          copy_must_include?: string | null
           cover_url?: string | null
           created_at?: string
           deadline?: string | null
           description?: string | null
+          food_types?: string[]
+          hashtags?: string[]
           id?: string
           merchant_id?: string
           min_followers?: number
+          notes?: string | null
           photos?: string[]
+          primary_food_type?: string | null
+          reference_link?: string | null
           region?: string
           restaurant_name?: string | null
           reward?: string
@@ -130,6 +214,9 @@ export type Database = {
           status?: Database["public"]["Enums"]["campaign_status"]
           title?: string
           updated_at?: string
+          video_direction?: string | null
+          video_must_avoid?: string | null
+          video_must_include?: string | null
         }
         Relationships: []
       }
@@ -241,10 +328,14 @@ export type Database = {
       merchant_profiles: {
         Row: {
           address: string | null
+          blacklist_reason: string | null
+          blacklisted: boolean
+          blacklisted_at: string | null
           contact_name: string | null
           created_at: string
           email: string | null
           foodie_plan: Database["public"]["Enums"]["foodie_plan"] | null
+          foodie_subscribed_at: string | null
           foodie_subscription_status: Database["public"]["Enums"]["foodie_subscription_status"]
           id: string
           phone: string | null
@@ -258,10 +349,14 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          blacklist_reason?: string | null
+          blacklisted?: boolean
+          blacklisted_at?: string | null
           contact_name?: string | null
           created_at?: string
           email?: string | null
           foodie_plan?: Database["public"]["Enums"]["foodie_plan"] | null
+          foodie_subscribed_at?: string | null
           foodie_subscription_status?: Database["public"]["Enums"]["foodie_subscription_status"]
           id?: string
           phone?: string | null
@@ -275,10 +370,14 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          blacklist_reason?: string | null
+          blacklisted?: boolean
+          blacklisted_at?: string | null
           contact_name?: string | null
           created_at?: string
           email?: string | null
           foodie_plan?: Database["public"]["Enums"]["foodie_plan"] | null
+          foodie_subscribed_at?: string | null
           foodie_subscription_status?: Database["public"]["Enums"]["foodie_subscription_status"]
           id?: string
           phone?: string | null
@@ -289,6 +388,48 @@ export type Database = {
           updated_at?: string
           user_id?: string
           verification_status?: Database["public"]["Enums"]["verification_status"]
+        }
+        Relationships: []
+      }
+      merchant_subscriptions: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          id: string
+          merchant_id: string
+          monthly_case_limit: number | null
+          payment_status: string
+          plan_type: Database["public"]["Enums"]["subscription_plan_type"]
+          price: number | null
+          started_at: string
+          status: Database["public"]["Enums"]["foodie_subscription_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          merchant_id: string
+          monthly_case_limit?: number | null
+          payment_status?: string
+          plan_type: Database["public"]["Enums"]["subscription_plan_type"]
+          price?: number | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["foodie_subscription_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          merchant_id?: string
+          monthly_case_limit?: number | null
+          payment_status?: string
+          plan_type?: Database["public"]["Enums"]["subscription_plan_type"]
+          price?: number | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["foodie_subscription_status"]
+          updated_at?: string
         }
         Relationships: []
       }
@@ -420,6 +561,12 @@ export type Database = {
         }
         Returns: boolean
       }
+      merchant_is_blacklisted: { Args: { _user_id: string }; Returns: boolean }
+      merchant_of_submission: {
+        Args: { _application_id: string }
+        Returns: boolean
+      }
+      owns_submission: { Args: { _application_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "merchant" | "creator"
@@ -428,6 +575,8 @@ export type Database = {
       foodie_plan: "basic" | "pro" | "enterprise"
       foodie_subscription_status: "inactive" | "active" | "expired"
       settlement_status: "pending" | "invoiced" | "paid" | "void"
+      submission_status: "draft" | "submitted" | "revising" | "approved"
+      subscription_plan_type: "basic" | "pro" | "enterprise"
       verification_status: "pending" | "approved" | "rejected"
     }
     CompositeTypes: {
@@ -562,6 +711,8 @@ export const Constants = {
       foodie_plan: ["basic", "pro", "enterprise"],
       foodie_subscription_status: ["inactive", "active", "expired"],
       settlement_status: ["pending", "invoiced", "paid", "void"],
+      submission_status: ["draft", "submitted", "revising", "approved"],
+      subscription_plan_type: ["basic", "pro", "enterprise"],
       verification_status: ["pending", "approved", "rejected"],
     },
   },
