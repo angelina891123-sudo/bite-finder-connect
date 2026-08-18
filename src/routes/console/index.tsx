@@ -50,6 +50,42 @@ function Stat({ label, value, hint }: { label: string; value: string | number; h
   );
 }
 
+/** 排行卡片：以橫條長度呈現相對高低，案件與餐廳共用同一份版型。 */
+function RankCard({ title, rows }: { title: string; rows: { name: string; count: number }[] }) {
+  const max = rows[0]?.count || 1;
+  return (
+    <Card className="border-[#EFE3D6] bg-white">
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <p className="py-6 text-center text-sm text-[#A08E7C]">尚無申請資料</p>
+        ) : (
+          <ul className="space-y-3">
+            {rows.map((r) => (
+              <li key={r.name} className="flex items-center gap-3">
+                <span className="w-36 shrink-0 truncate text-sm text-[#5C4630]" title={r.name}>
+                  {r.name}
+                </span>
+                <span className="h-2 flex-1 overflow-hidden rounded-full bg-[#F5EBE0]">
+                  <span
+                    className="block h-full rounded-full bg-[#FF8300]"
+                    style={{ width: `${(r.count / max) * 100}%` }}
+                  />
+                </span>
+                <span className="w-8 text-right text-sm tabular-nums text-[#A08E7C]">
+                  {r.count}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function Overview() {
   const { isAdmin } = useAuth();
   const merchants = useMerchants(isAdmin);
@@ -550,36 +586,13 @@ function Overview() {
         </Card>
       </div>
 
-      <Card className="border-[#EFE3D6] bg-white">
-        <CardHeader>
-          <CardTitle className="text-base">熱門案件（依申請數）</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {topCampaigns.length === 0 ? (
-            <p className="py-6 text-center text-sm text-[#A08E7C]">尚無申請資料</p>
-          ) : (
-            <ul className="space-y-3">
-              {topCampaigns.map((c) => {
-                const max = topCampaigns[0]?.count || 1;
-                return (
-                  <li key={c.title} className="flex items-center gap-3">
-                    <span className="w-48 shrink-0 truncate text-sm text-[#5C4630]">{c.title}</span>
-                    <span className="h-2 flex-1 overflow-hidden rounded-full bg-[#F5EBE0]">
-                      <span
-                        className="block h-full rounded-full bg-[#FF8300]"
-                        style={{ width: `${(c.count / max) * 100}%` }}
-                      />
-                    </span>
-                    <span className="w-8 text-right text-sm tabular-nums text-[#A08E7C]">
-                      {c.count}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <RankCard
+          title="熱門案件（依申請數）"
+          rows={topCampaigns.map((c) => ({ name: c.title, count: c.count }))}
+        />
+        <RankCard title="熱門餐廳（依申請數）" rows={topRestaurants} />
+      </div>
     </div>
   );
 }
