@@ -64,6 +64,7 @@ export type MerchantRow = {
   address: string | null;
   foodie_plan: PlanKey | null;
   foodie_subscription_status: SubscriptionStatus;
+  foodie_subscribed_at: string | null;
   blacklisted: boolean;
   blacklist_reason: string | null;
   blacklisted_at: string | null;
@@ -215,40 +216,6 @@ export function collabStats(apps: ApplicationRow[], creatorId: string) {
     approved: mine.filter((a) => a.status === "approved").length,
     total: mine.length,
   };
-}
-
-export type SettlementStatus = "pending" | "invoiced" | "paid" | "void";
-
-export type Settlement = {
-  id: string;
-  application_id: string;
-  merchant_id: string;
-  creator_id: string;
-  period: string;
-  amount: number;
-  platform_fee: number;
-  currency: string;
-  status: SettlementStatus;
-  note: string | null;
-  paid_at: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export function useSettlements(enabled: boolean) {
-  return useQuery({
-    queryKey: ["console-settlements"],
-    enabled,
-    retry: false,
-    queryFn: async () => {
-      const { data, error } = await rawSupabase
-        .from("settlements")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as Settlement[];
-    },
-  });
 }
 
 export type SubStatus = "draft" | "submitted" | "revising" | "approved";

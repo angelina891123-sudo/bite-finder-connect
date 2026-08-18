@@ -169,7 +169,9 @@ function Merchants() {
                     <SubscriptionBadge status={m.foodie_subscription_status} />
                   </TableCell>
                   <TableCell className="text-sm text-[#A08E7C]">
-                    {new Date(m.updated_at).toLocaleDateString()}
+                    {m.foodie_subscribed_at
+                      ? new Date(m.foodie_subscribed_at).toLocaleDateString()
+                      : "—"}
                   </TableCell>
                   <TableCell>{m.contact_name ?? "—"}</TableCell>
                   <TableCell>{m.region ?? "—"}</TableCell>

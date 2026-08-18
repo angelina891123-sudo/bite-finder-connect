@@ -17,15 +17,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  PLANS,
-  TWD,
-  useApplications,
-  useCampaigns,
-  useFoodies,
-  useMerchants,
-  useSettlements,
-} from "./-data";
+import { PLANS, TWD, useApplications, useCampaigns, useFoodies, useMerchants } from "./-data";
 
 export const Route = createFileRoute("/console/")({
   component: Overview,
@@ -53,7 +45,6 @@ function Overview() {
   const foodies = useFoodies(isAdmin);
   const campaigns = useCampaigns(isAdmin);
   const applications = useApplications(isAdmin);
-  const settlements = useSettlements(isAdmin);
 
   const mList = merchants.data ?? [];
   const fList = foodies.data ?? [];
@@ -82,26 +73,40 @@ function Overview() {
     完成: aList.filter((a) => a.completed && (a.completed_at ?? "").slice(0, 7) === m).length,
   }));
 
-  // cacaFly 平台收益：以結算紀錄的服務費按對帳期間彙總。
-  // 作廢（void）不計入；已付款為已入帳，待對帳與已請款為待收款。
-  const sList = settlements.data ?? [];
-  const revenueByMonth = months.map((m) => {
-    const rows = sList.filter((s) => s.period === m);
-    const sum = (states: string[]) =>
-      rows.filter((r) => states.includes(r.status)).reduce((n, r) => n + Number(r.platform_fee), 0);
+  // cacaFly 平台收益：依訂閱中的商家方案自動計算，不需要結算紀錄。
+  // Basic $600、Pro $1,600；Enterprise 為單案制客製報價，無法自動估算故不計入。
+  const activeMerchants = mList.filter((m) => m.foodie_subscription_status === "active");
+  const planRevenue = PLANS.map((p) => {
+    const list = activeMerchants.filter((m) => m.foodie_plan === p.key);
     return {
-      month: m,
-      paid: sum(["paid"]),
-      due: sum(["pending", "invoiced"]),
-      total: sum(["paid", "pending", "invoiced"]),
+      ...p,
+      count: list.length,
+      revenue: p.platformFee !== null ? p.platformFee * list.length : null,
     };
   });
-  const thisMonth = revenueByMonth[revenueByMonth.length - 1] ?? {
-    month: "",
-    paid: 0,
-    due: 0,
-    total: 0,
-  };
+  const monthlyRevenue = planRevenue.reduce((n, p) => n + (p.revenue ?? 0), 0);
+  const enterpriseCount = planRevenue.find((p) => p.key === "enterprise")?.count ?? 0;
+
+  /**
+   * 近 6 個月收益估算：把訂閱時間早於該月底、且目前仍在訂閱中的商家計入該月。
+   * 因為資料庫只保留目前的訂閱狀態、沒有歷史紀錄，中途退訂的商家無法回溯，
+   * 所以這是估算值而非實際帳務數字。
+   */
+  const revenueByMonth = months.map((m) => {
+    const [y, mm] = m.split("-").map(Number);
+    const nextMonth = new Date(y!, mm!, 1).getTime();
+    const total = PLANS.reduce((sum, p) => {
+      if (p.platformFee === null) return sum;
+      const n = activeMerchants.filter(
+        (x) =>
+          x.foodie_plan === p.key &&
+          (!x.foodie_subscribed_at || new Date(x.foodie_subscribed_at).getTime() < nextMonth),
+      ).length;
+      return sum + p.platformFee * n;
+    }, 0);
+    return { month: m, total };
+  });
+  const thisMonth = revenueByMonth[revenueByMonth.length - 1] ?? { month: "", total: 0 };
 
   const statusPie = [
     { name: "已核准", value: approved },
@@ -162,13 +167,19 @@ function Overview() {
       .map(
         (r) => `<tr>
           <td>${esc(r.month)}</td>
-          <td class="n">${TWD.format(r.paid)}</td>
-          <td class="n">${TWD.format(r.due)}</td>
           <td class="n b">${TWD.format(r.total)}</td>
         </tr>`,
       )
       .join("");
-    const revenueTotal = revenueByMonth.reduce((n, r) => n + r.total, 0);
+    const planRevenueRows = planRevenue
+      .map(
+        (p) => `<tr>
+          <td>${esc(p.label)}</td>
+          <td class="n">${p.count}</td>
+          <td class="n b">${p.revenue === null ? "客製報價" : TWD.format(p.revenue)}</td>
+        </tr>`,
+      )
+      .join("");
 
     const kpi = [
       ["商家", String(mList.length)],
@@ -269,16 +280,25 @@ function Overview() {
 
 <div class="hero">
   <p class="k">本月 cacaFly 平台收益（${esc(thisMonth.month)}）</p>
-  <p class="v">${TWD.format(thisMonth.total)}</p>
-  <p class="sub">已入帳 ${TWD.format(thisMonth.paid)} · 待收款 ${TWD.format(thisMonth.due)}</p>
+  <p class="v">${TWD.format(monthlyRevenue)}</p>
+  <p class="sub">依訂閱中的商家方案自動計算，Enterprise ${enterpriseCount} 家為客製報價未計入</p>
 </div>
 
-<h2>近 6 個月平台收益</h2>
+<h2>各方案收益組成</h2>
 <table>
-  <thead><tr><th>對帳期間</th><th class="n">已入帳</th><th class="n">待收款</th><th class="n">合計</th></tr></thead>
-  <tbody>${revenueRows}</tbody>
-  <tfoot><tr><td>六個月合計</td><td class="n"></td><td class="n"></td><td class="n b">${TWD.format(revenueTotal)}</td></tr></tfoot>
+  <thead><tr><th>方案別</th><th class="n">訂閱中家數</th><th class="n">月收益</th></tr></thead>
+  <tbody>${planRevenueRows}</tbody>
 </table>
+
+<h2>近 6 個月收益估算</h2>
+<table style="margin-top:8px">
+  <thead><tr><th>月份</th><th class="n">估算收益</th></tr></thead>
+  <tbody>${revenueRows}</tbody>
+</table>
+<p class="legend">
+  以訂閱時間早於該月底、且目前仍在訂閱中的商家估算；資料庫未保留訂閱歷史，
+  中途退訂者無法回溯，故為估算值。
+</p>
 
 <h2>整體指標</h2>
 <div class="kpi">
@@ -388,20 +408,33 @@ ${statusChart ? `<div class="chart">${statusChart}</div><p class="legend">${stat
         </Card>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-[#FF8300] bg-[#FFF4E8]">
           <CardHeader className="pb-1">
             <p className="text-xs text-[#B85C00]">本月平台收益（{thisMonth.month}）</p>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold tabular-nums text-[#B85C00]">
-              {TWD.format(thisMonth.total)}
+              {TWD.format(monthlyRevenue)}
             </p>
-            <p className="mt-1 text-xs text-[#A08E7C]">cacaFly 服務費合計</p>
+            <p className="mt-1 text-xs text-[#A08E7C]">依訂閱中的方案自動計算</p>
           </CardContent>
         </Card>
-        <Stat label="已入帳" value={TWD.format(thisMonth.paid)} hint="結算狀態為已付款" />
-        <Stat label="待收款" value={TWD.format(thisMonth.due)} hint="待對帳與已請款" />
+        {planRevenue
+          .filter((p) => p.platformFee !== null)
+          .map((p) => (
+            <Stat
+              key={p.key}
+              label={`${p.label} 訂閱中`}
+              value={TWD.format(p.revenue ?? 0)}
+              hint={`${p.count} 家 × ${TWD.format(p.platformFee ?? 0)}`}
+            />
+          ))}
+        <Stat
+          label="Enterprise 訂閱中"
+          value={`${enterpriseCount} 家`}
+          hint="單案制客製報價，未計入"
+        />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">

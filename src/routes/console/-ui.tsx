@@ -199,7 +199,11 @@ export function MerchantDialog({
               <Field label="Email">{merchant.email ?? "—"}</Field>
               <Field label="地區">{merchant.region ?? "—"}</Field>
               <Field label="地址">{merchant.address ?? "—"}</Field>
-              <Field label="訂閱時間">{new Date(merchant.updated_at).toLocaleString()}</Field>
+              <Field label="訂閱時間">
+                {merchant.foodie_subscribed_at
+                  ? new Date(merchant.foodie_subscribed_at).toLocaleString()
+                  : "尚未訂閱"}
+              </Field>
               <Field label="註冊時間">{new Date(merchant.created_at).toLocaleString()}</Field>
             </div>
 
