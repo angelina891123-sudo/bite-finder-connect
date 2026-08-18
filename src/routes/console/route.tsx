@@ -26,8 +26,8 @@ const NAV = [
   { to: "/console", label: "營運總覽", icon: LayoutDashboard, exact: true },
   { to: "/console/creators", label: "Foodie 管理", icon: Users, exact: false },
   { to: "/console/merchants", label: "商家管理", icon: Store, exact: false },
-  { to: "/console/submissions", label: "Foodie 內容審核", icon: FileCheck2, exact: false },
   { to: "/console/campaigns", label: "案件與媒合管理", icon: ClipboardList, exact: false },
+  { to: "/console/submissions", label: "Foodie 內容審核", icon: FileCheck2, exact: false },
 ] as const;
 
 function ConsoleLayout() {

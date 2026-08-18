@@ -182,7 +182,9 @@ export function MerchantDialog({
 
             {merchant.blacklisted && (
               <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                <p className="text-sm font-semibold text-red-800">此商家已列入黑名單</p>
+                <p className="text-sm font-semibold text-red-800">
+                  此商家已列入黑名單，無法建立或上架案件
+                </p>
                 <p className="mt-1 text-xs text-red-700">
                   {merchant.blacklist_reason || "未填寫原因"}
                   {merchant.blacklisted_at &&
@@ -204,6 +206,10 @@ export function MerchantDialog({
             {!merchant.blacklisted && (
               <div className="space-y-2">
                 <Label htmlFor="m-reason">黑名單原因</Label>
+                <p className="text-xs text-[#A08E7C]">
+                  列入後該商家將無法建立新案件，也無法把既有案件改回上架狀態。
+                  已經上架的案件不會自動下架。
+                </p>
                 <Textarea
                   id="m-reason"
                   value={reason}
