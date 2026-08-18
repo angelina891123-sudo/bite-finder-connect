@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth, REGIONS, COLLAB_TYPES } from "@/lib/auth";
 import { FOOD_TYPES, MAX_FOOD_TYPES, startOfMonthISO } from "@/lib/campaign";
 import { uploadCampaignPhotos } from "@/lib/campaign-photos";
+import { MaterialReviewList } from "@/components/MaterialReviewList";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,6 +56,7 @@ const MENU = [
   { key: "menu", label: "商品／菜單", icon: UtensilsCrossed },
   { key: "members", label: "會員管理", icon: Users2 },
   { key: "foodie", label: "Foodie 案件媒合", icon: Megaphone },
+  { key: "materials", label: "素材審核", icon: Check },
   { key: "performance", label: "合作成效", icon: TrendingUp },
   { key: "settings", label: "店家設定", icon: Settings },
 ] as const;
@@ -101,6 +103,11 @@ type Application = {
   // migration 套用前為 undefined，UI 會自動隱藏該區塊。
   visit_code?: string | null;
   visited?: boolean | null;
+  result_images?: string[] | null;
+  material_status?: string | null;
+  material_caption?: string | null;
+  material_media?: string[] | null;
+  material_submitted_at?: string | null;
 };
 
 function MerchantBackoffice() {
@@ -237,6 +244,33 @@ function MerchantBackoffice() {
     setRedeemTarget(null);
     void qc.invalidateQueries({ queryKey: ["merchant-applications", user?.id] });
   };
+
+  // 第二階段審核：僅處理管理員已放行（merchant_pending）的素材。
+  const reviewMaterial = async (id: string, pass: boolean, note: string) => {
+    if (!pass && !note.trim()) {
+      toast.error("退件必須填寫原因");
+      return;
+    }
+    const { error } = await supabase
+      .from("applications")
+      .update({
+        material_status: pass ? "approved" : "merchant_rejected",
+        material_note: pass ? null : note.trim(),
+      })
+      .eq("id", id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(pass ? "素材已通過，Foodie 可上傳成果" : "已退件");
+    void qc.invalidateQueries({ queryKey: ["merchant-applications", user?.id] });
+  };
+
+  const pendingMaterials = applications.filter(
+    (a) =>
+      a.material_status === "merchant_pending" &&
+      campaigns.some((c) => c.id === a.campaign_id),
+  );
 
   const signOut = async () => {
     await qc.cancelQueries();
@@ -494,6 +528,27 @@ function MerchantBackoffice() {
             </div>
             )}
           </>
+        ) : section === "materials" ? (
+          <div>
+            <h1 className="mb-1 text-2xl font-bold">素材審核</h1>
+            <p className="mb-6 text-sm text-muted-foreground">
+              Foodie 送出、且已通過平台初審的文案與素材。通過後 Foodie 才能上傳成果連結。
+            </p>
+            <MaterialReviewList
+              rows={pendingMaterials.map((a) => ({
+                id: a.id,
+                material_caption: a.material_caption ?? null,
+                material_media: a.material_media ?? null,
+                material_submitted_at: a.material_submitted_at ?? null,
+                campaigns: (() => {
+                  const c = campaigns.find((x) => x.id === a.campaign_id);
+                  return c ? { title: c.title, restaurant_name: c.restaurant_name } : null;
+                })(),
+              }))}
+              onReview={reviewMaterial}
+              emptyText="目前沒有待審核的素材。通過平台初審後會出現在這裡。"
+            />
+          </div>
         ) : section === "performance" ? (
           <PerformanceSection campaigns={campaigns} applications={applications} creators={creators} />
         ) : (
@@ -1029,9 +1084,9 @@ function PerformanceSection({
                 {ok.map((a) => {
                   const p = creators[a.creator_id];
                   return (
+                    <div key={a.id} className="rounded-md border border-border p-3 text-sm">
                     <div
-                      key={a.id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-3 text-sm"
+                      className="flex flex-wrap items-center justify-between gap-2"
                     >
                       <span>
                         {p?.display_name ?? "Foodie"}{" "}
@@ -1054,6 +1109,26 @@ function PerformanceSection({
                         )}
                         <Badge variant={a.completed ? "default" : "secondary"}>{a.completed ? "已完成" : "進行中"}</Badge>
                       </div>
+                    </div>
+                    {a.result_images && a.result_images.length > 0 && (
+                      <div className="mt-2">
+                        <p className="mb-1 text-xs text-muted-foreground">
+                          成效截圖（{a.result_images.length}）
+                        </p>
+                        <div className="flex gap-2 overflow-x-auto">
+                          {a.result_images.map((src) => (
+                            <a key={src} href={src} target="_blank" rel="noreferrer">
+                              <img
+                                src={src}
+                                alt="Foodie 上傳的成效截圖"
+                                loading="lazy"
+                                className="h-20 w-20 shrink-0 rounded-md border border-border object-cover"
+                              />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     </div>
                   );
                 })}

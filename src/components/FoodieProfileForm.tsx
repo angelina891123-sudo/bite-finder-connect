@@ -7,6 +7,7 @@ import { areasOf } from "@/lib/regions";
 import {
   COLLAB_PREFS,
   FOODIE_CATEGORIES,
+  GENDERS,
   saveFoodieProfile,
   type FoodieForm,
 } from "@/lib/foodie-profile";
@@ -22,6 +23,8 @@ const EMPTY: FoodieForm = {
   realName: "",
   email: "",
   phone: "",
+  gender: GENDERS[0] ?? "女",
+  age: "",
   region: REGIONS[0] ?? "台北市",
   areas: [],
   ig: "",
@@ -86,6 +89,8 @@ export function FoodieProfileForm({
       realName: profile.real_name ?? "",
       email: profile.email ?? userEmail ?? "",
       phone: profile.phone ?? "",
+      gender: profile.gender ?? GENDERS[0] ?? "女",
+      age: str(profile.age),
       region: profile.region ?? REGIONS[0] ?? "台北市",
       areas: profile.areas ?? [],
       ig: profile.ig_handle ?? "",
@@ -196,6 +201,18 @@ export function FoodieProfileForm({
               placeholder="0912-345-678"
               disabled={locked.phone}
             />
+          </Field>
+          <Field label="性別">
+            <SelectBox
+              value={f.gender}
+              onChange={(e) => setF((p) => ({ ...p, gender: e.target.value }))}
+              options={GENDERS}
+            />
+          </Field>
+          <Field label="年齡">
+            <Unit unit="歲">
+              <Input inputMode="numeric" value={f.age} onChange={set("age")} placeholder="25" />
+            </Unit>
           </Field>
           <Field label="常駐地區">
             <SelectBox

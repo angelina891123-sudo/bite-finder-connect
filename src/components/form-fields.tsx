@@ -4,17 +4,21 @@ export function Field({
   label,
   hint,
   full,
+  required,
   children,
 }: {
   label: string;
   hint?: string | undefined;
   full?: boolean;
+  /** 必填欄位標示星號；選填欄位維持不標。 */
+  required?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className={`flex flex-col gap-1.5 ${full ? "sm:col-span-2" : ""}`}>
       <Label className="text-[12.5px]">
         {label}
+        {required && <span className="ml-0.5 text-destructive">*</span>}
         {hint && (
           <span className="ml-1 text-[10.5px] font-normal text-muted-foreground">{hint}</span>
         )}

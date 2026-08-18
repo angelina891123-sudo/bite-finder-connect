@@ -8,6 +8,8 @@ import { areasOf, passwordScore } from "@/lib/regions";
 import {
   COLLAB_PREFS,
   FOODIE_CATEGORIES,
+  GENDERS,
+  num,
   PENDING_KEY,
   saveFoodieProfile,
   type FoodieForm,
@@ -51,6 +53,8 @@ function FoodieSignup() {
     email: "",
     password: "",
     phone: "",
+    gender: GENDERS[0] ?? "女",
+    age: "",
     region: REGIONS[0] ?? "台北市",
     ig: "",
     igUrl: "",
@@ -76,17 +80,38 @@ function FoodieSignup() {
   const toggle = (list: string[], setList: (v: string[]) => void, v: string) =>
     setList(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
-  const next = () => {
-    if (step === 1) {
-      if (!f.nickname.trim() || !f.email.trim()) {
-        toast.error("請填寫暱稱與 Email");
-        return;
-      }
-      if (!passwordScore(f.password).strong) {
-        toast.error("密碼強度不足，請至少 8 碼並包含英文字母與數字");
-        return;
-      }
+  // 各步驟的必填欄位；選填欄位（Threads／YouTube／TikTok／其他社群／作品連結）不列入。
+  const incompleteOf = (n: number) => {
+    const miss: string[] = [];
+    if (n === 1) {
+      if (!f.nickname.trim()) miss.push("暱稱／創作者名稱");
+      if (!f.realName.trim()) miss.push("真實姓名");
+      if (!f.email.trim()) miss.push("Email");
+      if (!passwordScore(f.password).strong) miss.push("密碼（至少 8 碼，含英文字母與數字）");
+      if (!f.phone.trim()) miss.push("手機號碼");
+      if (num(f.age) <= 0) miss.push("年齡");
+      if (areas.length === 0) miss.push("主要活動範圍");
     }
+    if (n === 2) {
+      if (!f.ig.trim()) miss.push("Instagram 帳號");
+      if (num(f.igFollowers) <= 0) miss.push("IG 粉絲數");
+      if (num(f.reels) <= 0) miss.push("平均 Reels 瀏覽數");
+      if (!f.igUrl.trim()) miss.push("IG 連結");
+      else if (!/^https?:\/\//i.test(f.igUrl.trim())) miss.push("IG 連結（需以 http(s):// 開頭）");
+    }
+    if (n === 3) {
+      if (cats.length === 0) miss.push("擅長內容類別");
+      if (prefs.length === 0) miss.push("偏好合作類型");
+      if (f.portfolio.trim() && !/^https?:\/\//i.test(f.portfolio.trim()))
+        miss.push("作品案例連結（需以 http(s):// 開頭）");
+    }
+    return miss;
+  };
+
+  const incomplete = incompleteOf(step);
+
+  const next = () => {
+    if (incomplete.length > 0) return;
     setStep((s) => Math.min(3, s + 1));
   };
 
@@ -98,6 +123,8 @@ function FoodieSignup() {
       realName: f.realName,
       email: f.email,
       phone: f.phone,
+      gender: f.gender,
+      age: f.age,
       region: f.region,
       areas,
       ig: f.ig,
@@ -228,23 +255,31 @@ function FoodieSignup() {
 
                 {step === 1 && (
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="暱稱／創作者名稱">
+                    <Field label="暱稱／創作者名稱" required>
                       <Input value={f.nickname} onChange={set("nickname")} placeholder="肚肚吃不停" />
                     </Field>
-                    <Field label="真實姓名">
+                    <Field label="真實姓名" required>
                       <Input value={f.realName} onChange={set("realName")} placeholder="王小美" />
                     </Field>
-                    <Field label="Email">
+                    <Field label="Email" required>
                       <Input type="email" value={f.email} onChange={set("email")} placeholder="you@example.com" />
                     </Field>
-                    <Field label="密碼" hint="至少 8 碼，含英文字母與數字">
+                    <Field label="密碼" hint="至少 8 碼，含英文字母與數字" required>
                       <Input type="password" value={f.password} onChange={set("password")} />
                       <PasswordStrength password={f.password} />
                     </Field>
-                    <Field label="手機號碼">
+                    <Field label="手機號碼" required>
                       <Input value={f.phone} onChange={set("phone")} placeholder="0912-345-678" />
                     </Field>
-                    <Field label="常駐地區">
+                    <Field label="性別" required>
+                      <SelectBox value={f.gender} onChange={set("gender")} options={GENDERS} />
+                    </Field>
+                    <Field label="年齡" required>
+                      <Unit unit="歲">
+                        <Input inputMode="numeric" value={f.age} onChange={set("age")} placeholder="25" />
+                      </Unit>
+                    </Field>
+                    <Field label="常駐地區" required>
                       <SelectBox
                         value={f.region}
                         onChange={(e) => {
@@ -254,7 +289,7 @@ function FoodieSignup() {
                         options={REGIONS}
                       />
                     </Field>
-                    <Field label="主要活動範圍" hint="可複選，依所選縣市顯示" full>
+                    <Field label="主要活動範圍" hint="可複選，依所選縣市顯示" full required>
                       <TagGroup
                         options={areasOf(f.region)}
                         selected={areas}
@@ -266,20 +301,20 @@ function FoodieSignup() {
 
                 {step === 2 && (
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Instagram 帳號">
+                    <Field label="Instagram 帳號" required>
                       <Input value={f.ig} onChange={set("ig")} placeholder="@your_ig" />
                     </Field>
-                    <Field label="IG 粉絲數">
+                    <Field label="IG 粉絲數" required>
                       <Unit unit="人">
                         <Input inputMode="numeric" value={f.igFollowers} onChange={set("igFollowers")} placeholder="12000" />
                       </Unit>
                     </Field>
-                    <Field label="平均 Reels 瀏覽數" hint="近 30 天">
+                    <Field label="平均 Reels 瀏覽數" hint="近 30 天" required>
                       <Unit unit="次">
                         <Input inputMode="numeric" value={f.reels} onChange={set("reels")} placeholder="8000" />
                       </Unit>
                     </Field>
-                    <Field label="IG 連結">
+                    <Field label="IG 連結" required>
                       <Input value={f.igUrl} onChange={set("igUrl")} placeholder="https://instagram.com/your_ig" />
                     </Field>
                     <Field label="Threads 帳號" hint="選填">
@@ -325,13 +360,15 @@ function FoodieSignup() {
                   <div className="space-y-6">
                     <div className="space-y-2">
                       <Label>
-                        擅長內容類別 <span className="text-xs font-normal text-muted-foreground">可複選</span>
+                        擅長內容類別<span className="ml-0.5 text-destructive">*</span>{" "}
+                        <span className="text-xs font-normal text-muted-foreground">可複選</span>
                       </Label>
                       <TagGroup options={FOODIE_CATEGORIES} selected={cats} onToggle={(v) => toggle(cats, setCats, v)} />
                     </div>
                     <div className="space-y-2">
                       <Label>
-                        偏好合作類型 <span className="text-xs font-normal text-muted-foreground">可複選</span>
+                        偏好合作類型<span className="ml-0.5 text-destructive">*</span>{" "}
+                        <span className="text-xs font-normal text-muted-foreground">可複選</span>
                       </Label>
                       <TagGroup options={COLLAB_PREFS} selected={prefs} onToggle={(v) => toggle(prefs, setPrefs, v)} />
                     </div>
@@ -341,7 +378,13 @@ function FoodieSignup() {
                   </div>
                 )}
 
-                <div className="mt-8 flex items-center justify-between pt-4">
+                {incomplete.length > 0 && (
+                  <p className="mt-6 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                    尚未填寫：{incomplete.join("、")}
+                  </p>
+                )}
+
+                <div className="mt-4 flex items-center justify-between pt-4">
                   {step > 1 ? (
                     <Button variant="ghost" onClick={() => setStep((s) => s - 1)}>
                       上一步
@@ -352,9 +395,11 @@ function FoodieSignup() {
                     </Link>
                   )}
                   {step < 3 ? (
-                    <Button onClick={next}>下一步</Button>
+                    <Button onClick={next} disabled={incomplete.length > 0}>
+                      下一步
+                    </Button>
                   ) : (
-                    <Button onClick={submit} disabled={busy}>
+                    <Button onClick={submit} disabled={busy || incomplete.length > 0}>
                       完成註冊
                     </Button>
                   )}

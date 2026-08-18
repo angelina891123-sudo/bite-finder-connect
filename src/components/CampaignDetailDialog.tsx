@@ -116,7 +116,11 @@ export function CampaignDetailDialog({
         <div className="grid gap-2 rounded-lg border border-border p-4 text-sm sm:grid-cols-2">
           <Row icon={Store} label="餐廳" value={campaign?.restaurant_name ?? "未提供"} />
           <Row icon={MapPin} label="地區" value={campaign?.region ?? ""} />
-          <Row icon={Clapperboard} label="合作類型" value={campaign?.collab_types.join("、") ?? ""} />
+          <Row
+            icon={Clapperboard}
+            label="合作類型"
+            value={campaign?.collab_types.join("、") ?? ""}
+          />
           <Row icon={Gift} label="獎勵" value={campaign?.reward ?? ""} />
           <Row
             icon={Users}

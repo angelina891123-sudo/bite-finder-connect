@@ -2,12 +2,20 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CalendarDays, MapPin, Users, Gift, Search, AlertTriangle } from "lucide-react";
+import { CalendarDays, MapPin, Users, Gift, Search, AlertTriangle, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth, REGIONS } from "@/lib/auth";
-import { APPLIED_LABEL, isExpired, todayISO } from "@/lib/campaign";
+import { useAuth, REGIONS, COLLAB_TYPES } from "@/lib/auth";
+import {
+  APPLIED_LABEL,
+  FOOD_TYPES,
+  FOLLOWER_TIERS,
+  isExpired,
+  matchesTier,
+  todayISO,
+} from "@/lib/campaign";
 import { SiteHeader } from "@/components/SiteHeader";
 import { CampaignDetailDialog } from "@/components/CampaignDetailDialog";
+import { TagGroup } from "@/components/form-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -62,12 +70,31 @@ type Campaign = {
   photos: string[];
 };
 
+/** 前台篩選：先選篩選項目，再於該項目下複選子項。 */
+const FILTER_GROUPS = [
+  { key: "region", label: "地區", options: REGIONS },
+  // TagGroup 只接受純字串選項，用 label（不含 emoji）作為顯示與篩選值。
+  { key: "food", label: "餐廳類型", options: FOOD_TYPES.map((f) => f.label) },
+  { key: "collab", label: "合作方式", options: [...COLLAB_TYPES] },
+  { key: "followers", label: "粉絲數門檻", options: FOLLOWER_TIERS.map((t) => t.label) },
+] as const;
+
+type FilterKey = (typeof FILTER_GROUPS)[number]["key"];
+
+const EMPTY_FILTERS: Record<FilterKey, string[]> = {
+  region: [],
+  food: [],
+  collab: [],
+  followers: [],
+};
+
 function Index() {
   const { user, isCreator, loading } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [keyword, setKeyword] = useState("");
-  const [region, setRegion] = useState("全部");
+  const [openGroup, setOpenGroup] = useState<FilterKey | null>(null);
+  const [filters, setFilters] = useState<Record<FilterKey, string[]>>(EMPTY_FILTERS);
   const [target, setTarget] = useState<Campaign | null>(null);
   const [detail, setDetail] = useState<Campaign | null>(null);
   const [message, setMessage] = useState("");
@@ -126,13 +153,34 @@ function Index() {
   });
 
   const noProfile = myFollowers === null;
-  const belowThreshold =
-    target && typeof myFollowers === "number" ? myFollowers < target.min_followers : false;
+  // 粉絲數尚在載入時回傳 null，避免誤判成未達標而擋下申請。
+  const belowThresholdFor = (c: Campaign) =>
+    myFollowers === undefined ? null : (myFollowers ?? 0) < c.min_followers;
 
+  const toggleFilter = (key: FilterKey, value: string) =>
+    setFilters((prev) => ({
+      ...prev,
+      [key]: prev[key].includes(value)
+        ? prev[key].filter((v) => v !== value)
+        : [...prev[key], value],
+    }));
+
+  const activeCount = Object.values(filters).reduce((n, v) => n + v.length, 0);
+
+  // 各篩選群組之間為 AND，同群組內的複選為 OR。
   const filtered = campaigns
     .filter(
       (c) =>
-        (region === "全部" || c.region === region) &&
+        (filters.region.length === 0 || filters.region.includes(c.region)) &&
+        (filters.food.length === 0 ||
+          (c.food_types ?? []).some((v) => {
+            const ft = FOOD_TYPES.find((f) => f.value === v);
+            return !!ft && filters.food.includes(ft.label);
+          })) &&
+        (filters.collab.length === 0 ||
+          c.collab_types.some((t) => filters.collab.includes(t))) &&
+        (filters.followers.length === 0 ||
+          filters.followers.some((t) => matchesTier(t, c.min_followers))) &&
         (keyword.trim() === "" ||
           `${c.title}${c.restaurant_name ?? ""}${c.collab_types.join(" ")}`.toLowerCase().includes(keyword.toLowerCase())),
     )
@@ -155,6 +203,15 @@ function Index() {
     }
     if (!isCreator) {
       toast.error("此帳號不是 Foodie 身分，請以 Foodie 帳號登入申請");
+      return;
+    }
+    // 粉絲數未達案件門檻者不開放申請。
+    if (belowThresholdFor(c)) {
+      toast.error(
+        noProfile
+          ? "你尚未填寫社群資料，請先到「我的申請 → 個人資料管理」填寫粉絲數"
+          : `未達標準，無法申請。此案件粉絲門檻為 ${c.min_followers.toLocaleString()} 人，你目前為 ${(myFollowers ?? 0).toLocaleString()} 人`,
+      );
       return;
     }
     setMessage("");
@@ -207,28 +264,70 @@ function Index() {
       <main id="campaigns" className="mx-auto max-w-7xl px-4 py-12">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-2xl font-bold">最新合作案件</h2>
-          <div className="flex gap-2">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="pl-9"
-                placeholder="搜尋餐廳或案件"
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
+          <div className="relative w-full sm:w-72">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="搜尋餐廳或案件"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* 先選篩選項目，再於下方複選子項 */}
+        <div className="mb-6 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {FILTER_GROUPS.map((g) => {
+              const count = filters[g.key].length;
+              const open = openGroup === g.key;
+              return (
+                <button
+                  key={g.key}
+                  type="button"
+                  onClick={() => setOpenGroup(open ? null : g.key)}
+                  className={`flex items-center gap-1.5 rounded-full border px-4 py-2 text-[13px] font-medium transition-colors ${
+                    open || count > 0
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background hover:bg-accent"
+                  }`}
+                >
+                  {g.label}
+                  {count > 0 && (
+                    <span className="rounded-full bg-primary-foreground px-1.5 text-[11px] font-bold text-primary">
+                      {count}
+                    </span>
+                  )}
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+                </button>
+              );
+            })}
+            {activeCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilters(EMPTY_FILTERS);
+                  setOpenGroup(null);
+                }}
+                className="text-sm text-muted-foreground underline hover:text-primary"
+              >
+                清除全部（{activeCount}）
+              </button>
+            )}
+          </div>
+
+          {openGroup && (
+            <div className="rounded-xl border border-border bg-card p-4">
+              <p className="mb-2 text-xs text-muted-foreground">
+                {FILTER_GROUPS.find((g) => g.key === openGroup)!.label}・可複選
+              </p>
+              <TagGroup
+                options={[...FILTER_GROUPS.find((g) => g.key === openGroup)!.options]}
+                selected={filters[openGroup]}
+                onToggle={(v) => toggleFilter(openGroup, v)}
               />
             </div>
-            <select
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-              value={region}
-              onChange={(e) => setRegion(e.target.value)}
-            >
-              {["全部", ...REGIONS].map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </div>
+          )}
         </div>
 
         {isLoading ? (
@@ -243,6 +342,7 @@ function Index() {
               const photos = c.photos ?? [];
               const expired = isExpired(c.deadline, today);
               const applied = appliedMap[c.id];
+              const below = belowThresholdFor(c) === true;
               return (
               <Card key={c.id} className={`flex flex-col ${expired ? "opacity-60" : ""}`}>
                 {photos[0] && (
@@ -289,10 +389,18 @@ function Index() {
                   </Button>
                   <Button
                     className="flex-1"
-                    disabled={expired || !!applied}
+                    disabled={expired || !!applied || (below && !noProfile)}
                     onClick={() => onApplyClick(c)}
                   >
-                    {expired ? "已截止" : applied ? (APPLIED_LABEL[applied] ?? "已申請") : "申請合作"}
+                    {expired
+                      ? "已截止"
+                      : applied
+                        ? (APPLIED_LABEL[applied] ?? "已申請")
+                        : noProfile
+                          ? "請先填寫資料"
+                          : below
+                            ? "未達標準"
+                            : "申請合作"}
                   </Button>
                 </CardFooter>
               </Card>
@@ -316,7 +424,10 @@ function Index() {
         </Button>
         <Button
           disabled={
-            !detail || isExpired(detail.deadline, today) || !!(detail && appliedMap[detail.id])
+            !detail ||
+            isExpired(detail.deadline, today) ||
+            !!appliedMap[detail.id] ||
+            (belowThresholdFor(detail) === true && !noProfile)
           }
           onClick={() => {
             if (!detail) return;
@@ -329,7 +440,11 @@ function Index() {
             ? "已截止"
             : detail && appliedMap[detail.id]
               ? (APPLIED_LABEL[appliedMap[detail.id]!] ?? "已申請")
-              : "申請合作"}
+              : noProfile
+                ? "請先填寫資料"
+                : detail && belowThresholdFor(detail) === true
+                  ? "未達標準"
+                  : "申請合作"}
         </Button>
       </CampaignDetailDialog>
 
@@ -345,7 +460,7 @@ function Index() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
           />
-          {noProfile ? (
+          {noProfile && (
             <div className="flex gap-2 rounded-md border border-primary/40 bg-accent p-3 text-sm">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               <span>
@@ -353,19 +468,9 @@ function Index() {
                 <Link to="/my-applications" className="font-medium text-primary underline">
                   我的申請 → 個人資料管理
                 </Link>{" "}
-                補上粉絲數，再送出申請。
+                補上粉絲數。
               </span>
             </div>
-          ) : (
-            belowThreshold && (
-              <div className="flex gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>
-                  此案件粉絲門檻為 {target?.min_followers.toLocaleString()} 人，你目前登錄的粉絲數為{" "}
-                  {(myFollowers ?? 0).toLocaleString()} 人，尚未達標。仍可送出申請，但商家可能不予核准。
-                </span>
-              </div>
-            )
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setTarget(null)}>

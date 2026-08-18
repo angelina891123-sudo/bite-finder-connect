@@ -10,6 +10,7 @@ export const FOODIE_CATEGORIES = [
   "開箱試吃",
 ];
 export const COLLAB_PREFS = ["免費體驗", "含現金報酬", "長期配合"];
+export const GENDERS = ["女", "男", "其他"];
 
 /** 註冊表單與個人資料管理共用的欄位形狀。 */
 export type FoodieForm = {
@@ -17,6 +18,8 @@ export type FoodieForm = {
   realName: string;
   email: string;
   phone: string;
+  gender: string;
+  age: string;
   region: string;
   areas: string[];
   ig: string;
@@ -54,6 +57,8 @@ export function toFoodieRow(userId: string, f: FoodieForm) {
     real_name: text(f.realName),
     email: text(f.email),
     phone: text(f.phone),
+    gender: text(f.gender),
+    age: num(f.age) || null,
     region: f.region,
     area: f.areas[0] ?? null,
     areas: f.areas,

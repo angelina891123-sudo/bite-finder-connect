@@ -20,9 +20,16 @@ export type Database = {
           completed: boolean
           completed_at: string | null
           created_at: string
+          result_images: string[]
           creator_id: string
           id: string
           message: string | null
+          material_status: string
+          material_caption: string | null
+          material_media: string[]
+          material_note: string | null
+          material_submitted_at: string | null
+          material_reviewed_at: string | null
           status: Database["public"]["Enums"]["application_status"]
           submission_url: string | null
           submitted_at: string | null
@@ -36,9 +43,16 @@ export type Database = {
           completed?: boolean
           completed_at?: string | null
           created_at?: string
+          result_images?: string[]
           creator_id: string
           id?: string
           message?: string | null
+          material_status?: string
+          material_caption?: string | null
+          material_media?: string[]
+          material_note?: string | null
+          material_submitted_at?: string | null
+          material_reviewed_at?: string | null
           status?: Database["public"]["Enums"]["application_status"]
           submission_url?: string | null
           submitted_at?: string | null
@@ -52,9 +66,16 @@ export type Database = {
           completed?: boolean
           completed_at?: string | null
           created_at?: string
+          result_images?: string[]
           creator_id?: string
           id?: string
           message?: string | null
+          material_status?: string
+          material_caption?: string | null
+          material_media?: string[]
+          material_note?: string | null
+          material_submitted_at?: string | null
+          material_reviewed_at?: string | null
           status?: Database["public"]["Enums"]["application_status"]
           submission_url?: string | null
           submitted_at?: string | null
@@ -171,6 +192,8 @@ export type Database = {
           collab_preferences: string[]
           created_at: string
           email: string | null
+          gender: string | null
+          age: number | null
           engagement_rate: number
           id: string
           ig_followers: number
@@ -203,6 +226,8 @@ export type Database = {
           collab_preferences?: string[]
           created_at?: string
           email?: string | null
+          gender?: string | null
+          age?: number | null
           engagement_rate?: number
           id?: string
           ig_followers?: number
@@ -235,6 +260,8 @@ export type Database = {
           collab_preferences?: string[]
           created_at?: string
           email?: string | null
+          gender?: string | null
+          age?: number | null
           engagement_rate?: number
           id?: string
           ig_followers?: number

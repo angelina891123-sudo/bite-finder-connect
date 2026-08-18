@@ -1,11 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { MaterialReviewList } from "@/components/MaterialReviewList";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -90,6 +93,38 @@ function AdminPage() {
     },
   });
 
+  const materials = useQuery({
+    queryKey: ["admin-materials"],
+    enabled: isAdmin,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("applications")
+        .select("*,campaigns(title,restaurant_name)")
+        .eq("material_status", "admin_pending")
+        .order("material_submitted_at", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // 第一階段審核：通過則轉交商家，退件則回到 Foodie 手上。
+  const reviewMaterial = async (id: string, pass: boolean, note: string) => {
+    if (!pass && !note.trim()) {
+      toast.error("退件必須填寫原因");
+      return;
+    }
+    const { error } = await supabase
+      .from("applications")
+      .update({
+        material_status: pass ? "merchant_pending" : "admin_rejected",
+        material_note: pass ? null : note.trim(),
+      })
+      .eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success(pass ? "已通過，將轉交商家審核" : "已退件");
+    void qc.invalidateQueries({ queryKey: ["admin-materials"] });
+  };
+
   const review = async (table: "merchant_profiles" | "foodie_profiles", id: string, status: VStatus) => {
     const { error } = await supabase
       .from(table)
@@ -167,6 +202,14 @@ function AdminPage() {
             <TabsTrigger value="merchants">商家審核</TabsTrigger>
             <TabsTrigger value="foodies">Foodie 審核</TabsTrigger>
             <TabsTrigger value="campaigns">案件總覽</TabsTrigger>
+            <TabsTrigger value="materials">
+              素材審核
+              {(materials.data?.length ?? 0) > 0 && (
+                <span className="ml-1 rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground">
+                  {materials.data!.length}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="applications">申請總覽</TabsTrigger>
           </TabsList>
 
@@ -302,6 +345,14 @@ function AdminPage() {
                 </Table>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="materials">
+            <MaterialReviewList
+              rows={materials.data ?? []}
+              onReview={reviewMaterial}
+              emptyText="目前沒有待審核的素材。"
+            />
           </TabsContent>
 
           <TabsContent value="applications">
