@@ -19,7 +19,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { PLANS, useCampaigns, useMerchants, type MerchantRow } from "./-data";
+import {
+  PLANS,
+  subscriptionView,
+  useCampaigns,
+  useMerchants,
+  useSubscriptions,
+  type MerchantRow,
+} from "./-data";
 import { BlacklistBadge, MerchantDialog, PlanBadge, SubscriptionBadge } from "./-ui";
 
 export const Route = createFileRoute("/console/merchants")({
@@ -30,6 +37,7 @@ function Merchants() {
   const { isAdmin } = useAuth();
   const merchants = useMerchants(isAdmin);
   const campaigns = useCampaigns(isAdmin);
+  const subscriptions = useSubscriptions(isAdmin);
 
   const [q, setQ] = useState("");
   const [planFilter, setPlanFilter] = useState("全部");
@@ -38,6 +46,8 @@ function Merchants() {
 
   const all = merchants.data ?? [];
   const cList = campaigns.data ?? [];
+  const subs = subscriptions.data ?? [];
+  const viewOf = (m: MerchantRow) => subscriptionView(subs, m);
   const kw = q.trim().toLowerCase();
 
   const rows = all
@@ -49,7 +59,7 @@ function Merchants() {
         (m.email ?? "").toLowerCase().includes(kw) ||
         (m.region ?? "").toLowerCase().includes(kw),
     )
-    .filter((m) => planFilter === "全部" || m.foodie_plan === planFilter)
+    .filter((m) => planFilter === "全部" || viewOf(m).plan?.key === planFilter)
     .filter((m) => {
       if (listFilter === "黑名單") return m.blacklisted;
       if (listFilter === "正常") return !m.blacklisted;
@@ -59,7 +69,7 @@ function Merchants() {
   const campaignCount = (userId: string) => cList.filter((c) => c.merchant_id === userId).length;
 
   const planCards = PLANS.map((p) => {
-    const list = all.filter((m) => m.foodie_plan === p.key);
+    const list = all.filter((m) => viewOf(m).plan?.key === p.key);
     return {
       ...p,
       count: list.length,
@@ -163,15 +173,13 @@ function Merchants() {
                 <TableRow key={m.id} className={m.blacklisted ? "bg-red-50/60" : undefined}>
                   <TableCell className="font-medium text-[#3F2E1E]">{m.store_name}</TableCell>
                   <TableCell>
-                    <PlanBadge plan={m.foodie_plan} />
+                    <PlanBadge plan={viewOf(m).plan?.key ?? null} />
                   </TableCell>
                   <TableCell>
-                    <SubscriptionBadge status={m.foodie_subscription_status} />
+                    <SubscriptionBadge status={viewOf(m).status} />
                   </TableCell>
                   <TableCell className="text-sm text-[#A08E7C]">
-                    {m.foodie_subscribed_at
-                      ? new Date(m.foodie_subscribed_at).toLocaleDateString()
-                      : "—"}
+                    {viewOf(m).since ? new Date(viewOf(m).since!).toLocaleDateString() : "—"}
                   </TableCell>
                   <TableCell>{m.contact_name ?? "—"}</TableCell>
                   <TableCell>{m.region ?? "—"}</TableCell>
@@ -204,7 +212,7 @@ function Merchants() {
         </CardContent>
       </Card>
 
-      <MerchantDialog merchant={open} onClose={() => setOpen(null)} />
+      <MerchantDialog merchant={open} subs={subs} onClose={() => setOpen(null)} />
     </div>
   );
 }

@@ -17,7 +17,16 @@ import {
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PLANS, TWD, useApplications, useCampaigns, useFoodies, useMerchants } from "./-data";
+import {
+  PLANS,
+  subscriptionView,
+  TWD,
+  useApplications,
+  useCampaigns,
+  useFoodies,
+  useMerchants,
+  useSubscriptions,
+} from "./-data";
 
 export const Route = createFileRoute("/console/")({
   component: Overview,
@@ -45,6 +54,7 @@ function Overview() {
   const foodies = useFoodies(isAdmin);
   const campaigns = useCampaigns(isAdmin);
   const applications = useApplications(isAdmin);
+  const subscriptions = useSubscriptions(isAdmin);
 
   const mList = merchants.data ?? [];
   const fList = foodies.data ?? [];
@@ -75,9 +85,11 @@ function Overview() {
 
   // cacaFly 平台收益：依訂閱中的商家方案自動計算，不需要結算紀錄。
   // Basic $600、Pro $1,600；Enterprise 為單案制客製報價，無法自動估算故不計入。
-  const activeMerchants = mList.filter((m) => m.foodie_subscription_status === "active");
+  const subs = subscriptions.data ?? [];
+  const views = mList.map((m) => subscriptionView(subs, m));
+  const activeViews = views.filter((v) => v.status === "active");
   const planRevenue = PLANS.map((p) => {
-    const list = activeMerchants.filter((m) => m.foodie_plan === p.key);
+    const list = activeViews.filter((v) => v.plan?.key === p.key);
     return {
       ...p,
       count: list.length,
@@ -97,10 +109,8 @@ function Overview() {
     const nextMonth = new Date(y!, mm!, 1).getTime();
     const total = PLANS.reduce((sum, p) => {
       if (p.platformFee === null) return sum;
-      const n = activeMerchants.filter(
-        (x) =>
-          x.foodie_plan === p.key &&
-          (!x.foodie_subscribed_at || new Date(x.foodie_subscribed_at).getTime() < nextMonth),
+      const n = activeViews.filter(
+        (v) => v.plan?.key === p.key && (!v.since || new Date(v.since).getTime() < nextMonth),
       ).length;
       return sum + p.platformFee * n;
     }, 0);
@@ -227,9 +237,9 @@ function Overview() {
     const planRows = [
       ...PLANS.map((p) => ({
         name: p.label,
-        count: mList.filter((m) => m.foodie_plan === p.key).length,
+        count: views.filter((v) => v.plan?.key === p.key).length,
       })),
-      { name: "未設定", count: mList.filter((m) => !m.foodie_plan).length },
+      { name: "未設定", count: views.filter((v) => !v.plan).length },
     ]
       .map((r) => `<tr><td>${esc(r.name)}</td><td class="n">${r.count}</td></tr>`)
       .join("");

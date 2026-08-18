@@ -18,10 +18,12 @@ import {
   planOf,
   rawSupabase,
   platformsOf,
+  subscriptionView,
   SUBSCRIPTION_LABEL,
   type ApplicationRow,
   type FoodieRow,
   type MerchantRow,
+  type MerchantSubscription,
   type SubscriptionStatus,
   type VStatus,
 } from "./-data";
@@ -138,9 +140,11 @@ export function useReviewActions() {
 
 export function MerchantDialog({
   merchant,
+  subs,
   onClose,
 }: {
   merchant: MerchantRow | null;
+  subs: MerchantSubscription[];
   onClose: () => void;
 }) {
   const { setBlacklist } = useReviewActions();
@@ -158,7 +162,7 @@ export function MerchantDialog({
     if (await setBlacklist(merchant.id, !merchant.blacklisted, reason)) onClose();
   };
 
-  const plan = planOf(merchant?.foodie_plan);
+  const view = merchant ? subscriptionView(subs, merchant) : null;
 
   return (
     <Dialog open={merchant !== null} onOpenChange={(o) => !o && onClose()}>
@@ -173,10 +177,15 @@ export function MerchantDialog({
                 <div>
                   <p className="text-xs text-[#A08E7C]">方案別</p>
                   <p className="mt-0.5 text-sm font-medium text-[#3F2E1E]">
-                    {plan ? `${plan.label}．${plan.desc}` : "—"}
+                    {view?.plan ? `${view.plan.label}．${view.plan.desc}` : "—"}
                   </p>
+                  {!view?.plan && view?.price !== null && view?.price !== undefined && (
+                    <p className="mt-0.5 text-xs text-[#A08E7C]">
+                      訂閱金額 ${Number(view.price).toLocaleString()}（不符合既有方案定價）
+                    </p>
+                  )}
                 </div>
-                <SubscriptionBadge status={merchant.foodie_subscription_status} />
+                <SubscriptionBadge status={view?.status ?? "inactive"} />
               </div>
             </div>
 
@@ -200,9 +209,10 @@ export function MerchantDialog({
               <Field label="地區">{merchant.region ?? "—"}</Field>
               <Field label="地址">{merchant.address ?? "—"}</Field>
               <Field label="訂閱時間">
-                {merchant.foodie_subscribed_at
-                  ? new Date(merchant.foodie_subscribed_at).toLocaleString()
-                  : "尚未訂閱"}
+                {view?.since ? new Date(view.since).toLocaleString() : "尚未訂閱"}
+              </Field>
+              <Field label="訂閱到期">
+                {view?.expiresAt ? new Date(view.expiresAt).toLocaleString() : "—"}
               </Field>
               <Field label="註冊時間">{new Date(merchant.created_at).toLocaleString()}</Field>
             </div>

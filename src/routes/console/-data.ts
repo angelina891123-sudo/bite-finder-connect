@@ -177,6 +177,78 @@ export type ApplicationRow = {
   campaigns: { title: string; restaurant_name: string | null; merchant_id: string } | null;
 };
 
+/**
+ * 訂閱資料的實際來源。
+ * merchant_subscriptions 是在 Supabase 後台直接新增的（沒有進任何分支的 migration），
+ * 商家在前端開通方案後寫入這裡；merchant_profiles.foodie_plan 已不再更新，
+ * 因此營運後台以這張表為準，僅在查不到訂閱紀錄時退回讀 merchant_profiles。
+ */
+export type MerchantSubscription = {
+  id: string;
+  merchant_id: string;
+  status: SubscriptionStatus;
+  price: number | null;
+  started_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export function useSubscriptions(enabled: boolean) {
+  return useQuery({
+    queryKey: ["console-subscriptions"],
+    enabled,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await rawSupabase
+        .from("merchant_subscriptions")
+        .select("*")
+        .order("started_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as MerchantSubscription[];
+    },
+  });
+}
+
+/** merchant_subscriptions 沒有方案欄位，方案以訂閱金額判定。 */
+export function planByPrice(price: number | null | undefined) {
+  if (price === null || price === undefined) return null;
+  return PLANS.find((p) => p.price !== null && Number(p.price) === Number(price)) ?? null;
+}
+
+/**
+ * 取某商家最新一筆訂閱。
+ * merchant_id 可能對應 auth.users.id 或 merchant_profiles.id（同事的表沒有註記），
+ * 兩者都比對以確保抓得到。
+ */
+export function subscriptionOf(subs: MerchantSubscription[], m: MerchantRow) {
+  const mine = subs.filter((s) => s.merchant_id === m.user_id || s.merchant_id === m.id);
+  return mine[0] ?? null;
+}
+
+/** 商家目前的方案與訂閱狀態：優先取訂閱表，查不到才退回 merchant_profiles。 */
+export function subscriptionView(subs: MerchantSubscription[], m: MerchantRow) {
+  const sub = subscriptionOf(subs, m);
+  if (sub) {
+    return {
+      plan: planByPrice(sub.price),
+      status: sub.status,
+      since: sub.started_at,
+      expiresAt: sub.expires_at,
+      price: sub.price,
+      fromSubscriptionTable: true,
+    };
+  }
+  return {
+    plan: planOf(m.foodie_plan),
+    status: m.foodie_subscription_status,
+    since: m.foodie_subscribed_at,
+    expiresAt: null,
+    price: null,
+    fromSubscriptionTable: false,
+  };
+}
+
 export function useApplications(enabled: boolean) {
   return useQuery({
     queryKey: ["console-applications"],
