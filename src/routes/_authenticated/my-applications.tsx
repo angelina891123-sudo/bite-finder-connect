@@ -1,7 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
+import { LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import {
@@ -82,6 +83,7 @@ function statusOf(r: Row) {
 function MyApplications() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [uploadTarget, setUploadTarget] = useState<Row | null>(null);
   const [url, setUrl] = useState("");
   const [cancelTarget, setCancelTarget] = useState<Row | null>(null);
@@ -110,6 +112,13 @@ function MyApplications() {
   });
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["my-applications", user?.id] });
+
+  const signOut = async () => {
+    await qc.cancelQueries();
+    qc.clear();
+    await supabase.auth.signOut();
+    navigate({ to: "/auth", search: { role: "creator", redirect: undefined }, replace: true });
+  };
 
   const saveUrl = async () => {
     if (!uploadTarget) return;
@@ -463,6 +472,11 @@ function MyApplications() {
 
           <TabsContent value="profile">
             {user && <FoodieProfileForm userId={user.id} userEmail={user.email ?? null} />}
+            <div className="mt-6 flex justify-end">
+              <Button variant="outline" onClick={signOut}>
+                <LogOut className="mr-2 h-4 w-4" /> 登出
+              </Button>
+            </div>
           </TabsContent>
         </Tabs>
       </main>
