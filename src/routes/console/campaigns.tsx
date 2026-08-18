@@ -165,7 +165,9 @@ function CampaignsAndApplications() {
                         <TableCell className="font-medium">{c.title}</TableCell>
                         <TableCell>{c.restaurant_name ?? merchantName(c.merchant_id)}</TableCell>
                         <TableCell>{c.region}</TableCell>
-                        <TableCell className="text-sm text-[#A08E7C]">{c.collab_type}</TableCell>
+                        <TableCell className="text-sm text-[#A08E7C]">
+                          {(c.collab_types ?? []).join("、")}
+                        </TableCell>
                         <TableCell className="tabular-nums">{c.slots}</TableCell>
                         <TableCell className="tabular-nums">{count}</TableCell>
                         <TableCell>
