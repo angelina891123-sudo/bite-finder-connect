@@ -105,7 +105,9 @@ function CampaignsAndApplications() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-[#3F2E1E]">案件與媒合管理</h1>
-          <p className="mt-1 text-sm text-[#A08E7C]">跨商家檢視所有案件與 Foodie 申請</p>
+          <p className="mt-1 text-sm text-[#A08E7C]">
+            核准或拒絕 Foodie 申請，並檢視跨商家的所有案件
+          </p>
         </div>
         <Input
           value={q}
@@ -115,12 +117,12 @@ function CampaignsAndApplications() {
         />
       </div>
 
-      <Tabs defaultValue="campaigns">
+      <Tabs defaultValue="applications">
         <TabsList>
-          <TabsTrigger value="campaigns">案件 ({cList.length})</TabsTrigger>
           <TabsTrigger value="applications">
             媒合審核{appPending > 0 && ` (${appPending})`}
           </TabsTrigger>
+          <TabsTrigger value="campaigns">案件 ({cList.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="campaigns">

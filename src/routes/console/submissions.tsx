@@ -8,7 +8,15 @@ import { useAuth } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -20,6 +28,7 @@ import {
 } from "@/components/ui/table";
 import {
   diffLines,
+  MERCHANT_STAGE_LABEL,
   rawSupabase,
   SUB_LABEL,
   useApplications,
@@ -47,6 +56,18 @@ function StageBadge({ status }: { status: SubStatus | null }) {
   return <Badge className={style[s]}>【{SUB_LABEL[s]}】</Badge>;
 }
 
+/** 商家審核階段的徽章：語意與平台端不同，顏色也刻意區隔。 */
+function StageBadgeMerchant({ status }: { status: SubStatus | null }) {
+  const s = status ?? "draft";
+  const style: Record<SubStatus, string> = {
+    approved: "bg-green-100 text-green-800 hover:bg-green-100",
+    submitted: "bg-[#FFF4E8] text-[#B85C00] hover:bg-[#FFF4E8]",
+    revising: "bg-red-50 text-red-700 hover:bg-red-50",
+    draft: "bg-[#F5EBE0] text-[#7A6555] hover:bg-[#F5EBE0]",
+  };
+  return <Badge className={style[s]}>{MERCHANT_STAGE_LABEL[s]}</Badge>;
+}
+
 function MaterialReview() {
   const { isAdmin, user } = useAuth();
   const qc = useQueryClient();
@@ -58,6 +79,9 @@ function MaterialReview() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  // 退回修改一律要求填寫原因，因此用對話框收集，不直接改狀態
+  const [rejectTarget, setRejectTarget] = useState<"caption" | "media" | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const apps = applications.data ?? [];
@@ -82,6 +106,22 @@ function MaterialReview() {
     toast.success(msg);
     refresh();
     return true;
+  };
+
+  const openReject = (target: "caption" | "media", app: ApplicationRow) => {
+    setRejectTarget(target);
+    setRejectNote((target === "caption" ? app.caption_review_note : app.media_review_note) ?? "");
+  };
+
+  const submitReject = async (a: ApplicationRow) => {
+    if (!rejectTarget) return;
+    const note = rejectNote.trim();
+    if (!note) return;
+    const values =
+      rejectTarget === "caption"
+        ? { caption_status: "revising", caption_reviewed_at: null, caption_review_note: note }
+        : { media_status: "revising", media_reviewed_at: null, media_review_note: note };
+    if (await patch(a.id, values, "已退回修改並記錄原因")) setRejectTarget(null);
   };
 
   const saveCaption = async (a: ApplicationRow) => {
@@ -175,6 +215,7 @@ function MaterialReview() {
                   <TableHead>照片</TableHead>
                   <TableHead className="text-right">張數</TableHead>
                   <TableHead className="text-right">已選用</TableHead>
+                  <TableHead>商家確稿</TableHead>
                   <TableHead className="text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
@@ -208,6 +249,9 @@ function MaterialReview() {
                     <TableCell className="text-right tabular-nums">
                       {(a.selected_media ?? []).length}
                     </TableCell>
+                    <TableCell>
+                      <StageBadgeMerchant status={a.merchant_review_status} />
+                    </TableCell>
                     <TableCell className="text-right">
                       <Button
                         size="sm"
@@ -225,7 +269,7 @@ function MaterialReview() {
                 ))}
                 {reviewable.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-[#A08E7C]">
+                    <TableCell colSpan={9} className="text-center text-[#A08E7C]">
                       目前沒有已核准的媒合。請先到「案件與媒合管理」核准 Foodie 的申請。
                     </TableCell>
                   </TableRow>
@@ -325,13 +369,7 @@ function MaterialReview() {
                     size="sm"
                     variant="outline"
                     className="border-[#EFE3D6] bg-white"
-                    onClick={() =>
-                      void patch(
-                        app.id,
-                        { caption_status: "revising", caption_reviewed_at: null },
-                        "已退回修改",
-                      )
-                    }
+                    onClick={() => openReject("caption", app)}
                   >
                     取消確稿
                   </Button>
@@ -341,9 +379,7 @@ function MaterialReview() {
                       size="sm"
                       variant="outline"
                       className="border-[#EFE3D6] bg-white"
-                      onClick={() =>
-                        void patch(app.id, { caption_status: "revising" }, "已退回修改")
-                      }
+                      onClick={() => openReject("caption", app)}
                     >
                       退回修改
                     </Button>
@@ -371,6 +407,14 @@ function MaterialReview() {
           </div>
         </CardHeader>
         <CardContent className="pt-4">
+          {app.caption_status === "revising" && app.caption_review_note && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3">
+              <p className="text-xs font-semibold text-red-800">退回修改原因</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-red-700">
+                {app.caption_review_note}
+              </p>
+            </div>
+          )}
           {editing ? (
             <Textarea
               value={draft}
@@ -470,18 +514,22 @@ function MaterialReview() {
               <ImagePlus className="mr-2 h-4 w-4" />
               {busy ? "上傳中…" : "補上傳照片"}
             </Button>
+            {app.media_status !== "approved" && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-[#EFE3D6] bg-white"
+                onClick={() => openReject("media", app)}
+              >
+                退回修改
+              </Button>
+            )}
             {app.media_status === "approved" ? (
               <Button
                 size="sm"
                 variant="outline"
                 className="border-[#EFE3D6] bg-white"
-                onClick={() =>
-                  void patch(
-                    app.id,
-                    { media_status: "revising", media_reviewed_at: null },
-                    "已退回修改",
-                  )
-                }
+                onClick={() => openReject("media", app)}
               >
                 取消確稿
               </Button>
@@ -504,6 +552,14 @@ function MaterialReview() {
           </div>
         </CardHeader>
         <CardContent className="pt-4">
+          {app.media_status === "revising" && app.media_review_note && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3">
+              <p className="text-xs font-semibold text-red-800">退回修改原因</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-red-700">
+                {app.media_review_note}
+              </p>
+            </div>
+          )}
           {media.length === 0 ? (
             <p className="rounded-lg border border-dashed border-[#EFE3D6] p-10 text-center text-sm text-[#A08E7C]">
               Foodie 尚未上傳照片
@@ -564,6 +620,121 @@ function MaterialReview() {
           )}
         </CardContent>
       </Card>
+
+      {/* 後續流程：平台確稿後交棒商家，商家確稿後 Foodie 才能發文 */}
+      <Card className="border-[#EFE3D6] bg-white">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b border-[#EFE3D6] bg-[#FDF7F0]">
+          <div className="flex items-center gap-3">
+            <CardTitle className="text-base text-[#3F2E1E]">後續流程</CardTitle>
+            <StageBadgeMerchant status={app.merchant_review_status} />
+          </div>
+          {app.merchant_review_status === "submitted" && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-[#EFE3D6] bg-white"
+              onClick={() =>
+                void patch(
+                  app.id,
+                  {
+                    merchant_review_status: "approved",
+                    merchant_reviewed_at: new Date().toISOString(),
+                  },
+                  "已代商家確稿",
+                )
+              }
+            >
+              代商家確稿
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent className="pt-4">
+          <ol className="space-y-2 text-sm">
+            <li className="flex items-start gap-2">
+              <span className="mt-0.5 text-[#FF8300]">1</span>
+              <span className="text-[#5C4630]">
+                平台確稿文案與照片
+                {app.caption_status === "approved" && app.media_status === "approved"
+                  ? " — 已完成"
+                  : " — 進行中"}
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="mt-0.5 text-[#FF8300]">2</span>
+              <span className="text-[#5C4630]">
+                商家於商家後台確稿
+                {app.merchant_reviewed_at
+                  ? ` — 已於 ${new Date(app.merchant_reviewed_at).toLocaleString()} 完成`
+                  : app.merchant_review_status === "submitted"
+                    ? " — 等待商家處理"
+                    : " — 尚未輪到"}
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="mt-0.5 text-[#FF8300]">3</span>
+              <span className="text-[#5C4630]">
+                Foodie 發文
+                {app.published_at
+                  ? ` — 已於 ${new Date(app.published_at).toLocaleString()} 發布`
+                  : app.merchant_review_status === "approved"
+                    ? " — 可發文，等待 Foodie"
+                    : " — 尚未輪到"}
+              </span>
+            </li>
+          </ol>
+
+          {app.merchant_review_status === "revising" && app.merchant_review_note && (
+            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3">
+              <p className="text-xs font-semibold text-red-800">商家退回原因</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-red-700">
+                {app.merchant_review_note}
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={rejectTarget !== null} onOpenChange={(o) => !o && setRejectTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>退回{rejectTarget === "caption" ? "文案" : "照片"}並說明原因</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="reject-note">修改原因說明（必填）</Label>
+            <Textarea
+              id="reject-note"
+              value={rejectNote}
+              onChange={(e) => setRejectNote(e.target.value)}
+              rows={5}
+              className="border-[#EFE3D6]"
+              placeholder={
+                rejectTarget === "caption"
+                  ? "例如：品牌名稱寫錯、缺少指定標籤、字數不足"
+                  : "例如：照片模糊、未拍到指定餐點、需補橫式照片"
+              }
+            />
+            <p className="text-xs text-[#A08E7C]">
+              這段說明會記錄在這筆交付上，讓 Foodie 知道要修哪裡。
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="border-[#EFE3D6] bg-white"
+              onClick={() => setRejectTarget(null)}
+            >
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!rejectNote.trim()}
+              onClick={() => void submitReject(app)}
+            >
+              退回修改
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

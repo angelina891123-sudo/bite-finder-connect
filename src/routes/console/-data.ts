@@ -174,6 +174,13 @@ export type ApplicationRow = {
   media_status: SubStatus | null;
   caption_reviewed_at: string | null;
   media_reviewed_at: string | null;
+  caption_review_note: string | null;
+  media_review_note: string | null;
+  // 三段流程：平台確稿 → 商家確稿 → Foodie 發文
+  merchant_review_status: SubStatus | null;
+  merchant_reviewed_at: string | null;
+  merchant_review_note: string | null;
+  published_at: string | null;
   campaigns: { title: string; restaurant_name: string | null; merchant_id: string } | null;
 };
 
@@ -291,6 +298,14 @@ export function collabStats(apps: ApplicationRow[], creatorId: string) {
 }
 
 export type SubStatus = "draft" | "submitted" | "revising" | "approved";
+
+/** 商家審核階段的文字：與平台端的 SUB_LABEL 語意不同，需分開。 */
+export const MERCHANT_STAGE_LABEL: Record<SubStatus, string> = {
+  draft: "待平台確稿",
+  submitted: "待商家確稿",
+  revising: "商家退回",
+  approved: "可發文",
+};
 
 export const SUB_LABEL: Record<SubStatus, string> = {
   draft: "待提交",

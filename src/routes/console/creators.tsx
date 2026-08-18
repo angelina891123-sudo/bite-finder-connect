@@ -170,8 +170,7 @@ function Creators() {
                 <TableHead>分級</TableHead>
                 <TableHead>宣傳平台</TableHead>
                 <TableHead className="text-right">總粉絲數</TableHead>
-                <TableHead className="text-right">互動率</TableHead>
-                <TableHead className="text-right">合作次數</TableHead>
+                <TableHead className="text-right">合作次數（完成／申請）</TableHead>
                 <TableHead>地區</TableHead>
                 <TableHead>狀態</TableHead>
                 <TableHead className="text-right">操作</TableHead>
@@ -212,9 +211,6 @@ function Creators() {
                       {reachOf(f).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {f.engagement_rate ? `${f.engagement_rate}%` : "—"}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
                       {stats.completed}
                       {stats.total > 0 && (
                         <span className="text-xs text-[#A08E7C]"> / {stats.total}</span>
@@ -234,7 +230,7 @@ function Creators() {
               })}
               {rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-[#A08E7C]">
+                  <TableCell colSpan={8} className="text-center text-[#A08E7C]">
                     {all.length === 0 ? "尚無創作者資料" : "沒有符合條件的創作者"}
                   </TableCell>
                 </TableRow>

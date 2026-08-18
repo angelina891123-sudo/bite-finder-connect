@@ -33,6 +33,8 @@ export const Route = createFileRoute("/console/")({
 });
 
 const PIE_COLORS = ["#FF8300", "#FFC894", "#EFE3D6"];
+/** 對應 PIE_COLORS 的文字色：淺色色塊直接當文字會看不清楚，列印時尤其明顯。 */
+const PIE_TEXT = ["#FF8300", "#E8A860", "#A08E7C"];
 
 function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
@@ -119,10 +121,11 @@ function Overview() {
   const thisMonth = revenueByMonth[revenueByMonth.length - 1] ?? { month: "", total: 0 };
 
   const statusPie = [
-    { name: "已核准", value: approved },
     { name: "審核中", value: aList.filter((a) => a.status === "pending").length },
-    { name: "已拒絕", value: aList.filter((a) => a.status === "rejected").length },
+    { name: "已完成", value: completed },
   ].filter((d) => d.value > 0);
+  // 占比以圖上呈現的項目為基準，legend 的百分比才會合計 100%
+  const pieTotal = statusPie.reduce((n, d) => n + d.value, 0);
 
   // 依申請數排出前 5 名案件
   const topCampaigns = cList
@@ -155,7 +158,7 @@ function Overview() {
      * 直接複製頁面上 recharts 已渲染的 SVG，讓報表的圖表與畫面完全一致。
      * recharts 只設 width/height 而沒有 viewBox，因此補上 viewBox 才能等比縮放到紙張寬度。
      */
-    const grabChart = (containerId: string) => {
+    const grabChart = (containerId: string, heightMm: number) => {
       const svg = document.getElementById(containerId)?.querySelector("svg");
       if (!svg) return "";
       const clone = svg.cloneNode(true) as SVGElement;
@@ -164,23 +167,17 @@ function Overview() {
       if (w && h && !clone.getAttribute("viewBox")) {
         clone.setAttribute("viewBox", `0 0 ${w} ${h}`);
       }
+      // 同時指定寬高並保留比例，圖形會等比縮放並置中，不會因原始長寬比而撐高
       clone.setAttribute("width", "100%");
-      clone.removeAttribute("height");
+      clone.setAttribute("height", `${heightMm}mm`);
       clone.setAttribute("preserveAspectRatio", "xMidYMid meet");
       return clone.outerHTML;
     };
 
-    const trendChart = grabChart("chart-trend");
-    const statusChart = grabChart("chart-status");
+    const trendChart = grabChart("chart-trend", 36);
+    // 圓餅圖所在的卡片較窄，高度跟著縮小才不會顯得比長條圖大
+    const statusChart = grabChart("chart-status", 28);
 
-    const revenueRows = revenueByMonth
-      .map(
-        (r) => `<tr>
-          <td>${esc(r.month)}</td>
-          <td class="n b">${TWD.format(r.total)}</td>
-        </tr>`,
-      )
-      .join("");
     const planRevenueRows = planRevenue
       .map(
         (p) => `<tr>
@@ -210,13 +207,25 @@ function Overview() {
       )
       .join("");
 
+    // 圖例直接帶數字，圓餅圖旁就不需要再放一張同內容的表格
+    const statusLegend = statusPie
+      .map(
+        (d, i) =>
+          `<span style="color:${PIE_TEXT[i % PIE_TEXT.length]}"><i style="background:${
+            PIE_COLORS[i % PIE_COLORS.length]
+          }"></i>${esc(d.name)} ${d.value} 筆（${
+            pieTotal ? Math.round((d.value / pieTotal) * 100) : 0
+          }%）</span>`,
+      )
+      .join("");
+
     const statusRows = statusPie.length
       ? statusPie
           .map(
             (d) => `<tr>
               <td>${esc(d.name)}</td>
               <td class="n">${d.value}</td>
-              <td class="n">${aList.length ? Math.round((d.value / aList.length) * 100) : 0}%</td>
+              <td class="n">${pieTotal ? Math.round((d.value / pieTotal) * 100) : 0}%</td>
             </tr>`,
           )
           .join("")
@@ -234,16 +243,6 @@ function Overview() {
           .join("")
       : '<tr><td colspan="3">尚無申請資料</td></tr>';
 
-    const planRows = [
-      ...PLANS.map((p) => ({
-        name: p.label,
-        count: views.filter((v) => v.plan?.key === p.key).length,
-      })),
-      { name: "未設定", count: views.filter((v) => !v.plan).length },
-    ]
-      .map((r) => `<tr><td>${esc(r.name)}</td><td class="n">${r.count}</td></tr>`)
-      .join("");
-
     const html = `<!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -253,15 +252,15 @@ function Overview() {
   @page { size: A4 portrait; margin: 16mm; }
   * { box-sizing: border-box; }
   body { font-family: "PingFang TC","Heiti TC","Microsoft JhengHei",sans-serif; color: #3F2E1E; margin: 0; }
-  header { border-bottom: 3px solid #FF8300; padding-bottom: 10px; margin-bottom: 18px; }
+  header { border-bottom: 3px solid #FF8300; padding-bottom: 8px; margin-bottom: 12px; }
   h1 { font-size: 22px; margin: 0 0 4px; }
-  h2 { font-size: 14px; margin: 22px 0 8px; padding-left: 8px; border-left: 4px solid #FF8300; }
+  h2 { font-size: 13px; margin: 14px 0 6px; padding-left: 8px; border-left: 4px solid #FF8300; }
   .meta { font-size: 12px; color: #A08E7C; }
   .kpi { display: flex; flex-wrap: wrap; gap: 8px; }
-  .kpi div { flex: 1 1 30%; border: 1px solid #EFE3D6; background: #FDF7F0; border-radius: 8px; padding: 8px 12px; }
+  .kpi div { flex: 1 1 0; min-width: 0; border: 1px solid #EFE3D6; background: #FDF7F0; border-radius: 8px; padding: 6px 8px; }
   .kpi p { margin: 0; }
   .kpi .k { font-size: 11px; color: #A08E7C; }
-  .kpi .v { font-size: 20px; font-weight: 700; }
+  .kpi .v { font-size: 18px; font-weight: 700; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   th, td { border: 1px solid #EFE3D6; padding: 6px 8px; text-align: left; }
   th { background: #FF8300; color: #fff; font-weight: 600; }
@@ -269,15 +268,23 @@ function Overview() {
   td.n, th.n { text-align: right; }
   .bar { display: inline-block; height: 8px; background: #FF8300; border-radius: 4px; min-width: 2px; }
   td.b { font-weight: 700; }
-  .hero { border: 2px solid #FF8300; background: #FFF4E8; border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; }
+  .hero { border: 2px solid #FF8300; background: #FFF4E8; border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
   .hero .k { margin: 0; font-size: 12px; color: #B85C00; }
   .hero .v { margin: 2px 0 0; font-size: 30px; font-weight: 800; color: #B85C00; }
   .hero .sub { margin: 6px 0 0; font-size: 12px; color: #7A6555; }
-  .chart { border: 1px solid #EFE3D6; border-radius: 8px; background: #fff; padding: 6px; }
-  .chart svg { display: block; }
-  .legend { margin: 6px 0 0; font-size: 11px; color: #7A6555; }
-  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 12px; vertical-align: middle; }
-  .legend i:first-child { margin-left: 0; }
+  .charts { display: flex; gap: 10px; align-items: stretch; }
+  .charts > div {
+    min-width: 0;
+    border: 1px solid #EFE3D6; border-radius: 10px; background: #fff; padding: 10px 12px;
+  }
+  /* 與頁面相同的 2:1 比例，圓餅圖不會被拉得跟長條圖一樣大 */
+  .charts > div:first-child { flex: 2 1 0; }
+  .charts > div:last-child { flex: 1 1 0; }
+  .chart svg { display: block; margin: 0 auto; }
+  h3 { font-size: 13px; font-weight: 700; margin: 0 0 8px; color: #3F2E1E; }
+  .legend { margin: 8px 0 0; font-size: 11px; text-align: center; color: #7A6555; }
+  .legend span { margin: 0 7px; font-weight: 600; white-space: nowrap; }
+  .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
   footer { margin-top: 20px; padding-top: 8px; border-top: 1px solid #EFE3D6; font-size: 11px; color: #A08E7C; }
   @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } h2 { break-after: avoid; } table { break-inside: avoid; } }
 </style>
@@ -294,56 +301,46 @@ function Overview() {
   <p class="sub">依訂閱中的商家方案自動計算，Enterprise ${enterpriseCount} 家為客製報價未計入</p>
 </div>
 
-<h2>各方案收益組成</h2>
+<h2>收益組成</h2>
 <table>
   <thead><tr><th>方案別</th><th class="n">訂閱中家數</th><th class="n">月收益</th></tr></thead>
   <tbody>${planRevenueRows}</tbody>
 </table>
-
-<h2>近 6 個月收益估算</h2>
-<table style="margin-top:8px">
-  <thead><tr><th>月份</th><th class="n">估算收益</th></tr></thead>
-  <tbody>${revenueRows}</tbody>
-</table>
-<p class="legend">
-  以訂閱時間早於該月底、且目前仍在訂閱中的商家估算；資料庫未保留訂閱歷史，
-  中途退訂者無法回溯，故為估算值。
-</p>
 
 <h2>整體指標</h2>
 <div class="kpi">
   ${kpi.map(([k, v]) => `<div><p class="k">${esc(k)}</p><p class="v">${esc(v)}</p></div>`).join("")}
 </div>
 
-<h2>近 6 個月申請與完成趨勢</h2>
-${trendChart ? `<div class="chart">${trendChart}</div><p class="legend"><i style="background:#FFC894"></i>申請<i style="background:#FF8300"></i>完成</p>` : ""}
-<table style="margin-top:8px">
-  <thead><tr><th>月份</th><th class="n">申請</th><th class="n">完成</th></tr></thead>
-  <tbody>${trendRows}</tbody>
-</table>
-
-<h2>媒合狀態</h2>
-${statusChart ? `<div class="chart">${statusChart}</div><p class="legend">${statusPie.map((d, i) => `<i style="background:${PIE_COLORS[i % PIE_COLORS.length]}"></i>${esc(d.name)}`).join("")}</p>` : ""}
-<table style="margin-top:8px">
-  <thead><tr><th>狀態</th><th class="n">筆數</th><th class="n">占比</th></tr></thead>
-  <tbody>${statusRows}</tbody>
-</table>
+<div class="charts">
+  <div>
+    <h3>近 6 個月申請趨勢</h3>
+    ${
+      trendChart
+        ? `<div class="chart">${trendChart}</div>
+    <p class="legend">
+      <span style="color:#E8A860"><i style="background:#FFC894"></i>申請</span>
+      <span style="color:#FF8300"><i style="background:#FF8300"></i>完成</span>
+    </p>`
+        : `<table><thead><tr><th>月份</th><th class="n">申請</th><th class="n">完成</th></tr></thead><tbody>${trendRows}</tbody></table>`
+    }
+  </div>
+  <div>
+    <h3>媒合狀態</h3>
+    ${
+      statusChart
+        ? `<div class="chart">${statusChart}</div>
+    <p class="legend">${statusLegend}</p>`
+        : `<table><thead><tr><th>狀態</th><th class="n">筆數</th><th class="n">占比</th></tr></thead><tbody>${statusRows}</tbody></table>`
+    }
+  </div>
+</div>
 
 <h2>熱門案件（依申請數前 5 名）</h2>
 <table>
   <thead><tr><th class="n">#</th><th>案件標題</th><th class="n">申請數</th></tr></thead>
   <tbody>${topRows}</tbody>
 </table>
-
-<h2>商家方案分布</h2>
-<table>
-  <thead><tr><th>方案別</th><th class="n">商家數</th></tr></thead>
-  <tbody>${planRows}</tbody>
-</table>
-
-<footer>
-  申請總數 ${aList.length} 筆 · 已核准 ${approved} 筆 · 已完成 ${completed} 筆
-</footer>
 </body>
 </html>`;
 
