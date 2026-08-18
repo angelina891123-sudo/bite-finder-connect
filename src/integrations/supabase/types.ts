@@ -23,10 +23,14 @@ export type Database = {
           creator_id: string
           id: string
           message: string | null
+          result_images: string[]
           status: Database["public"]["Enums"]["application_status"]
           submission_url: string | null
           submitted_at: string | null
           updated_at: string
+          visit_code: string | null
+          visited: boolean
+          visited_at: string | null
         }
         Insert: {
           campaign_id: string
@@ -36,10 +40,14 @@ export type Database = {
           creator_id: string
           id?: string
           message?: string | null
+          result_images?: string[]
           status?: Database["public"]["Enums"]["application_status"]
           submission_url?: string | null
           submitted_at?: string | null
           updated_at?: string
+          visit_code?: string | null
+          visited?: boolean
+          visited_at?: string | null
         }
         Update: {
           campaign_id?: string
@@ -49,10 +57,14 @@ export type Database = {
           creator_id?: string
           id?: string
           message?: string | null
+          result_images?: string[]
           status?: Database["public"]["Enums"]["application_status"]
           submission_url?: string | null
           submitted_at?: string | null
           updated_at?: string
+          visit_code?: string | null
+          visited?: boolean
+          visited_at?: string | null
         }
         Relationships: [
           {
@@ -123,6 +135,7 @@ export type Database = {
       }
       foodie_profiles: {
         Row: {
+          age: number | null
           area: string | null
           areas: string[]
           categories: string[]
@@ -130,11 +143,14 @@ export type Database = {
           created_at: string
           email: string | null
           engagement_rate: number
+          gender: string | null
           id: string
           ig_followers: number
           ig_handle: string | null
           ig_url: string | null
           nickname: string
+          other_social_followers: number
+          other_social_handle: string | null
           phone: string | null
           portfolio_url: string | null
           real_name: string | null
@@ -144,6 +160,8 @@ export type Database = {
           reviewed_at: string | null
           threads_followers: number
           threads_handle: string | null
+          tiktok_followers: number
+          tiktok_handle: string | null
           updated_at: string
           user_id: string
           verification_status: Database["public"]["Enums"]["verification_status"]
@@ -151,6 +169,7 @@ export type Database = {
           youtube_subscribers: number
         }
         Insert: {
+          age?: number | null
           area?: string | null
           areas?: string[]
           categories?: string[]
@@ -158,11 +177,14 @@ export type Database = {
           created_at?: string
           email?: string | null
           engagement_rate?: number
+          gender?: string | null
           id?: string
           ig_followers?: number
           ig_handle?: string | null
           ig_url?: string | null
           nickname: string
+          other_social_followers?: number
+          other_social_handle?: string | null
           phone?: string | null
           portfolio_url?: string | null
           real_name?: string | null
@@ -172,6 +194,8 @@ export type Database = {
           reviewed_at?: string | null
           threads_followers?: number
           threads_handle?: string | null
+          tiktok_followers?: number
+          tiktok_handle?: string | null
           updated_at?: string
           user_id: string
           verification_status?: Database["public"]["Enums"]["verification_status"]
@@ -179,6 +203,7 @@ export type Database = {
           youtube_subscribers?: number
         }
         Update: {
+          age?: number | null
           area?: string | null
           areas?: string[]
           categories?: string[]
@@ -186,11 +211,14 @@ export type Database = {
           created_at?: string
           email?: string | null
           engagement_rate?: number
+          gender?: string | null
           id?: string
           ig_followers?: number
           ig_handle?: string | null
           ig_url?: string | null
           nickname?: string
+          other_social_followers?: number
+          other_social_handle?: string | null
           phone?: string | null
           portfolio_url?: string | null
           real_name?: string | null
@@ -200,6 +228,8 @@ export type Database = {
           reviewed_at?: string | null
           threads_followers?: number
           threads_handle?: string | null
+          tiktok_followers?: number
+          tiktok_handle?: string | null
           updated_at?: string
           user_id?: string
           verification_status?: Database["public"]["Enums"]["verification_status"]
@@ -214,6 +244,8 @@ export type Database = {
           contact_name: string | null
           created_at: string
           email: string | null
+          foodie_plan: Database["public"]["Enums"]["foodie_plan"] | null
+          foodie_subscription_status: Database["public"]["Enums"]["foodie_subscription_status"]
           id: string
           phone: string | null
           region: string | null
@@ -229,6 +261,8 @@ export type Database = {
           contact_name?: string | null
           created_at?: string
           email?: string | null
+          foodie_plan?: Database["public"]["Enums"]["foodie_plan"] | null
+          foodie_subscription_status?: Database["public"]["Enums"]["foodie_subscription_status"]
           id?: string
           phone?: string | null
           region?: string | null
@@ -244,6 +278,8 @@ export type Database = {
           contact_name?: string | null
           created_at?: string
           email?: string | null
+          foodie_plan?: Database["public"]["Enums"]["foodie_plan"] | null
+          foodie_subscription_status?: Database["public"]["Enums"]["foodie_subscription_status"]
           id?: string
           phone?: string | null
           region?: string | null
@@ -295,6 +331,62 @@ export type Database = {
         }
         Relationships: []
       }
+      settlements: {
+        Row: {
+          amount: number
+          application_id: string
+          created_at: string
+          creator_id: string
+          currency: string
+          id: string
+          merchant_id: string
+          note: string | null
+          paid_at: string | null
+          period: string
+          platform_fee: number
+          status: Database["public"]["Enums"]["settlement_status"]
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          application_id: string
+          created_at?: string
+          creator_id: string
+          currency?: string
+          id?: string
+          merchant_id: string
+          note?: string | null
+          paid_at?: string | null
+          period: string
+          platform_fee?: number
+          status?: Database["public"]["Enums"]["settlement_status"]
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          application_id?: string
+          created_at?: string
+          creator_id?: string
+          currency?: string
+          id?: string
+          merchant_id?: string
+          note?: string | null
+          paid_at?: string | null
+          period?: string
+          platform_fee?: number
+          status?: Database["public"]["Enums"]["settlement_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "settlements_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -333,6 +425,9 @@ export type Database = {
       app_role: "admin" | "merchant" | "creator"
       application_status: "pending" | "approved" | "rejected"
       campaign_status: "draft" | "published" | "closed"
+      foodie_plan: "basic" | "pro" | "enterprise"
+      foodie_subscription_status: "inactive" | "active" | "expired"
+      settlement_status: "pending" | "invoiced" | "paid" | "void"
       verification_status: "pending" | "approved" | "rejected"
     }
     CompositeTypes: {
@@ -464,6 +559,9 @@ export const Constants = {
       app_role: ["admin", "merchant", "creator"],
       application_status: ["pending", "approved", "rejected"],
       campaign_status: ["draft", "published", "closed"],
+      foodie_plan: ["basic", "pro", "enterprise"],
+      foodie_subscription_status: ["inactive", "active", "expired"],
+      settlement_status: ["pending", "invoiced", "paid", "void"],
       verification_status: ["pending", "approved", "rejected"],
     },
   },
