@@ -1,116 +1,115 @@
--- Foodie 素材審核：上傳成果連結／成效截圖之前，必須先送出文案與圖片／影片素材，
--- 依序經平台管理員與商家兩階段審核通過。
+-- Foodie 內容審核改以 applications 的 material_caption / material_media 為單一資料來源。
 --
--- 狀態流程：
---   draft            Foodie 編輯中，尚未送審
---   admin_pending    已送審，等待平台管理員
---   admin_rejected   管理員退件（附原因），Foodie 可修改後重送
---   merchant_pending 管理員通過，等待商家
---   merchant_rejected 商家退件（附原因），Foodie 可修改後重送
---   approved         商家通過，解鎖成果連結與成效截圖
-
+-- 背景：material_caption（text）與 material_media（text[]）是在 Supabase 後台直接新增的，
+-- 沒有進任何分支的 migration。這裡補上 IF NOT EXISTS 的定義，讓專案的 migration 能反映
+-- 真實結構；若欄位已存在則不會有任何影響。
 ALTER TABLE public.applications
-  ADD COLUMN IF NOT EXISTS material_status text NOT NULL DEFAULT 'draft',
   ADD COLUMN IF NOT EXISTS material_caption text,
-  ADD COLUMN IF NOT EXISTS material_media text[] NOT NULL DEFAULT '{}'::text[],
-  ADD COLUMN IF NOT EXISTS material_note text,
-  ADD COLUMN IF NOT EXISTS material_submitted_at timestamptz,
-  ADD COLUMN IF NOT EXISTS material_reviewed_at timestamptz;
+  ADD COLUMN IF NOT EXISTS material_media text[] NOT NULL DEFAULT '{}';
 
--- 素材檔案（圖片與影片）。沿用既有做法：私有 bucket、路徑第一層為上傳者 id。
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('campaign-materials', 'campaign-materials', false, 104857600,
-        ARRAY['image/png','image/jpeg','image/webp','image/gif','video/mp4','video/quicktime','video/webm'])
-ON CONFLICT (id) DO NOTHING;
+-- 審核狀態：material_caption / material_media 只存內容，存不了確稿流程所需的狀態，
+-- 因此在同一張表上補齊營運端需要的欄位，維持單一資料來源。
+ALTER TABLE public.applications
+  ADD COLUMN IF NOT EXISTS caption_status public.submission_status NOT NULL DEFAULT 'draft',
+  ADD COLUMN IF NOT EXISTS media_status public.submission_status NOT NULL DEFAULT 'draft',
+  ADD COLUMN IF NOT EXISTS caption_reviewed_at timestamptz,
+  ADD COLUMN IF NOT EXISTS media_reviewed_at timestamptz,
+  ADD COLUMN IF NOT EXISTS material_caption_prev text,
+  ADD COLUMN IF NOT EXISTS selected_media text[] NOT NULL DEFAULT '{}';
 
-DROP POLICY IF EXISTS "campaign_materials_auth_read" ON storage.objects;
-CREATE POLICY "campaign_materials_auth_read" ON storage.objects
-  FOR SELECT TO authenticated USING (bucket_id = 'campaign-materials');
+COMMENT ON COLUMN public.applications.material_caption_prev IS '上一版文案，由觸發器自動維護，供營運後台「比較差異」使用';
+COMMENT ON COLUMN public.applications.selected_media IS '營運端挑選採用的照片網址，為 material_media 的子集';
 
-DROP POLICY IF EXISTS "campaign_materials_owner_insert" ON storage.objects;
-CREATE POLICY "campaign_materials_owner_insert" ON storage.objects
-  FOR INSERT TO authenticated
-  WITH CHECK (bucket_id = 'campaign-materials' AND (storage.foldername(name))[1] = auth.uid()::text);
+CREATE INDEX IF NOT EXISTS idx_applications_caption_status ON public.applications(caption_status);
+CREATE INDEX IF NOT EXISTS idx_applications_media_status ON public.applications(media_status);
 
-DROP POLICY IF EXISTS "campaign_materials_owner_delete" ON storage.objects;
-CREATE POLICY "campaign_materials_owner_delete" ON storage.objects
-  FOR DELETE TO authenticated
-  USING (bucket_id = 'campaign-materials' AND (storage.foldername(name))[1] = auth.uid()::text);
-
--- 狀態轉移的守門：避免 Foodie 自行把素材標記為通過。
-CREATE OR REPLACE FUNCTION public.handle_material_review()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE
-  is_admin boolean;
-  is_merchant boolean;
-  is_creator boolean;
+-- 自動保留上一版文案。
+-- 不論是 Foodie 從官網修改、或營運端在後台修改，都會正確留下前一版，
+-- 前端不需要自己搬值。文案一有變動就退回「待確稿」，避免舊的確稿狀態被沿用。
+CREATE OR REPLACE FUNCTION public.track_material_caption_history() RETURNS trigger
+LANGUAGE plpgsql SET search_path = public AS $$
 BEGIN
-  IF NEW.material_status IS NOT DISTINCT FROM OLD.material_status THEN
-    RETURN NEW;
+  IF NEW.material_caption IS DISTINCT FROM OLD.material_caption THEN
+    NEW.material_caption_prev := OLD.material_caption;
+
+    -- 由管理員自己改寫文案時不重設狀態，避免他一存檔就把自己的確稿清掉
+    IF NOT public.has_role(auth.uid(), 'admin') THEN
+      NEW.caption_status := 'submitted';
+      NEW.caption_reviewed_at := NULL;
+    END IF;
   END IF;
 
-  is_admin := public.has_role(auth.uid(), 'admin');
-  is_merchant := EXISTS (
-    SELECT 1 FROM public.campaigns c
-    WHERE c.id = NEW.campaign_id AND c.merchant_id = auth.uid()
-  );
-  is_creator := NEW.creator_id = auth.uid();
-
-  -- Foodie 只能送審（含退件後重送）。
-  IF NEW.material_status = 'admin_pending' THEN
-    IF NOT (is_creator OR is_admin) THEN
-      RAISE EXCEPTION '只有該 Foodie 可以送出素材審核';
-    END IF;
-    IF OLD.material_status NOT IN ('draft', 'admin_rejected', 'merchant_rejected') THEN
-      RAISE EXCEPTION '目前狀態無法送審';
-    END IF;
-    NEW.material_submitted_at := now();
-    NEW.material_note := NULL;
-
-  -- 第一關：平台管理員。
-  ELSIF NEW.material_status IN ('merchant_pending', 'admin_rejected') THEN
-    IF NOT is_admin THEN
-      RAISE EXCEPTION '只有平台管理員可以進行第一階段審核';
-    END IF;
-    IF OLD.material_status <> 'admin_pending' THEN
-      RAISE EXCEPTION '素材尚未送出管理員審核';
-    END IF;
-    NEW.material_reviewed_at := now();
-
-  -- 第二關：商家。管理員退件的案件不會走到這裡。
-  ELSIF NEW.material_status IN ('approved', 'merchant_rejected') THEN
-    IF NOT (is_merchant OR is_admin) THEN
-      RAISE EXCEPTION '只有商家可以進行第二階段審核';
-    END IF;
-    IF OLD.material_status <> 'merchant_pending' THEN
-      RAISE EXCEPTION '素材尚未通過管理員審核';
-    END IF;
-    NEW.material_reviewed_at := now();
-
-  ELSIF NEW.material_status = 'draft' THEN
-    IF NOT (is_creator OR is_admin) THEN
-      RAISE EXCEPTION '無權變更素材狀態';
+  -- 照片清單有變動同樣退回待確稿，並清掉已不存在的選用項
+  IF NEW.material_media IS DISTINCT FROM OLD.material_media THEN
+    IF NOT public.has_role(auth.uid(), 'admin') THEN
+      NEW.media_status := 'submitted';
+      NEW.media_reviewed_at := NULL;
     END IF;
 
-  ELSE
-    RAISE EXCEPTION '未知的素材狀態: %', NEW.material_status;
-  END IF;
-
-  -- 退件必須附原因。
-  IF NEW.material_status IN ('admin_rejected', 'merchant_rejected')
-     AND coalesce(btrim(NEW.material_note), '') = '' THEN
-    RAISE EXCEPTION '退件必須填寫原因';
+    NEW.selected_media := ARRAY(
+      SELECT unnest(NEW.selected_media) INTERSECT SELECT unnest(NEW.material_media)
+    );
   END IF;
 
   RETURN NEW;
-END $$;
+END; $$;
 
-REVOKE ALL ON FUNCTION public.handle_material_review() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.track_material_caption_history() FROM PUBLIC, anon, authenticated;
 
-DROP TRIGGER IF EXISTS trg_applications_material ON public.applications;
-CREATE TRIGGER trg_applications_material
+DROP TRIGGER IF EXISTS trg_applications_caption_history ON public.applications;
+CREATE TRIGGER trg_applications_caption_history
 BEFORE UPDATE ON public.applications
-FOR EACH ROW EXECUTE FUNCTION public.handle_material_review();
+FOR EACH ROW EXECUTE FUNCTION public.track_material_caption_history();
 
--- 管理員需要能更新 applications 才能審核（既有 applications_update 已涵蓋 admin）。
--- 商家亦已由 applications_update 涵蓋，此處不需新增 policy。
+-- 確稿與選用照片屬營運端決定，僅限平台管理員。
+-- applications_creator_update 允許 Foodie 更新自己的申請（用於交付內容），
+-- 但 RLS 的 WITH CHECK 無法比較變更前後的值，所以用觸發器把關。
+CREATE OR REPLACE FUNCTION public.guard_material_review() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF public.has_role(auth.uid(), 'admin') THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.caption_status = 'approved' AND OLD.caption_status <> 'approved' THEN
+    RAISE EXCEPTION '文案確稿僅限平台管理員';
+  END IF;
+
+  IF NEW.media_status = 'approved' AND OLD.media_status <> 'approved' THEN
+    RAISE EXCEPTION '照片確稿僅限平台管理員';
+  END IF;
+
+  IF NEW.caption_reviewed_at IS DISTINCT FROM OLD.caption_reviewed_at
+     OR NEW.media_reviewed_at IS DISTINCT FROM OLD.media_reviewed_at THEN
+    RAISE EXCEPTION '確稿時間僅限平台管理員變更';
+  END IF;
+
+  -- 選用照片只有管理員能改；但觸發器自動剔除已刪除的照片不算變更意圖，
+  -- 因此只在「新增了不在舊清單裡的項目」時擋下。
+  IF EXISTS (
+    SELECT 1 FROM unnest(NEW.selected_media) AS s
+    WHERE s <> ALL (COALESCE(OLD.selected_media, '{}'))
+  ) THEN
+    RAISE EXCEPTION '選用照片僅限平台管理員變更';
+  END IF;
+
+  RETURN NEW;
+END; $$;
+
+REVOKE ALL ON FUNCTION public.guard_material_review() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS trg_applications_material_guard ON public.applications;
+CREATE TRIGGER trg_applications_material_guard
+BEFORE UPDATE ON public.applications
+FOR EACH ROW EXECUTE FUNCTION public.guard_material_review();
+
+-- 移除先前另建的交付資料表：內容已統一存放於 applications，
+-- 兩套並存會讓營運後台與官網看到的資料不一致。
+--
+-- 注意：這裡刻意不移除 owns_submission()/merchant_of_submission()——
+-- main 分支的 20260818090000_delivery_review_helpers.sql 重新建立了這兩個
+-- function，因為資料庫上另有一個尚未追蹤來源的 guard_delivery_review()
+-- trigger 依賴它們。在查清楚那個 trigger 的真正用途前，保守起見先保留。
+DROP TABLE IF EXISTS public.submission_photos;
+DROP TABLE IF EXISTS public.submissions;
+DROP FUNCTION IF EXISTS public.guard_submission_approval();

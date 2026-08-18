@@ -523,6 +523,11 @@ function MerchantBackoffice() {
                                   )}
                                 </div>
                               )}
+                              {a.status === "pending" && (
+                                <p className="mt-2 text-xs text-muted-foreground">
+                                  由平台審核中，結果會在此更新。
+                                </p>
+                              )}
                             </div>
                           );
                         })}
