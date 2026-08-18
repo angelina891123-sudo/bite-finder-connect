@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import { Image as ImageIcon, Link as LinkIcon } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -8,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -17,7 +19,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { platformsOf, useApplications, useCampaigns, useFoodies, useMerchants } from "./-data";
+import {
+  platformsOf,
+  useApplications,
+  useCampaigns,
+  useFoodies,
+  useMerchants,
+  type ApplicationRow,
+} from "./-data";
 
 export const Route = createFileRoute("/console/campaigns")({
   component: CampaignsAndApplications,
@@ -39,6 +48,8 @@ function CampaignsAndApplications() {
   const merchants = useMerchants(isAdmin);
   const [q, setQ] = useState("");
   const [onlyPendingApps, setOnlyPendingApps] = useState(false);
+  // 成效截圖以對話框呈現，避免表格被縮圖撐開
+  const [resultOf, setResultOf] = useState<ApplicationRow | null>(null);
 
   const setCampaignStatus = async (id: string, status: "published" | "closed") => {
     const { error } = await supabase.from("campaigns").update({ status }).eq("id", id);
@@ -216,6 +227,8 @@ function CampaignsAndApplications() {
                     <TableHead className="text-right">粉絲數</TableHead>
                     <TableHead>審核狀態</TableHead>
                     <TableHead>合作完成</TableHead>
+                    <TableHead>追蹤連結</TableHead>
+                    <TableHead className="text-right">追蹤成效</TableHead>
                     <TableHead>申請時間</TableHead>
                     <TableHead className="text-right">操作</TableHead>
                   </TableRow>
@@ -256,6 +269,36 @@ function CampaignsAndApplications() {
                             <Badge variant="secondary">未完成</Badge>
                           )}
                         </TableCell>
+                        <TableCell>
+                          {a.submission_url ? (
+                            <a
+                              href={a.submission_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-sm text-[#B85C00] underline"
+                            >
+                              <LinkIcon className="h-3.5 w-3.5" />
+                              開啟貼文
+                            </a>
+                          ) : (
+                            <span className="text-sm text-[#A08E7C]">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {(a.result_images ?? []).length > 0 ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-[#EFE3D6] bg-white"
+                              onClick={() => setResultOf(a)}
+                            >
+                              <ImageIcon className="mr-1 h-3.5 w-3.5" />
+                              {(a.result_images ?? []).length} 張
+                            </Button>
+                          ) : (
+                            <span className="text-sm text-[#A08E7C]">—</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-sm text-[#A08E7C]">
                           {new Date(a.created_at).toLocaleDateString()}
                         </TableCell>
@@ -279,23 +322,22 @@ function CampaignsAndApplications() {
                             </>
                           ) : (
                             <>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() =>
-                                  decide(a.id, a.status === "approved" ? "rejected" : "approved")
-                                }
-                              >
-                                改為{a.status === "approved" ? "拒絕" : "核准"}
-                              </Button>
-                              {a.status === "approved" && (
+                              {a.status === "rejected" && (
                                 <Button
                                   size="sm"
-                                  variant={a.completed ? "outline" : "default"}
-                                  onClick={() => toggleCompleted(a.id, !a.completed)}
+                                  variant="ghost"
+                                  onClick={() => decide(a.id, "approved")}
                                 >
-                                  {a.completed ? "取消完成" : "標記完成"}
+                                  改為核准
                                 </Button>
+                              )}
+                              {a.status === "approved" && !a.completed && (
+                                <Button size="sm" onClick={() => toggleCompleted(a.id, true)}>
+                                  標記完成
+                                </Button>
+                              )}
+                              {a.status === "approved" && a.completed && (
+                                <span className="text-sm text-[#A08E7C]">—</span>
                               )}
                             </>
                           )}
@@ -305,7 +347,7 @@ function CampaignsAndApplications() {
                   })}
                   {aList.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-[#A08E7C]">
+                      <TableCell colSpan={10} className="text-center text-[#A08E7C]">
                         {onlyPendingApps ? "沒有待審核的申請" : "沒有符合的申請"}
                       </TableCell>
                     </TableRow>
@@ -316,6 +358,48 @@ function CampaignsAndApplications() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={resultOf !== null} onOpenChange={(o) => !o && setResultOf(null)}>
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-[#3F2E1E]">
+              追蹤成效 — {resultOf?.campaigns?.title ?? "案件"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {resultOf?.submission_url && (
+              <a
+                href={resultOf.submission_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-[#B85C00] underline"
+              >
+                <LinkIcon className="h-4 w-4" />
+                開啟貼文連結
+              </a>
+            )}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(resultOf?.result_images ?? []).map((url, i) => (
+                <a
+                  key={url}
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="overflow-hidden rounded-lg border border-[#EFE3D6]"
+                >
+                  <img
+                    src={url}
+                    alt={`成效截圖 ${i + 1}`}
+                    loading="lazy"
+                    className="w-full bg-[#FDF7F0] object-contain"
+                  />
+                </a>
+              ))}
+            </div>
+            <p className="text-xs text-[#A08E7C]">由 Foodie 上傳的成效截圖，點擊可開啟原圖。</p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

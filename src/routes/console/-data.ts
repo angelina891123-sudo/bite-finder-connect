@@ -164,6 +164,9 @@ export type ApplicationRow = {
   campaign_id: string;
   message: string | null;
   submitted_at: string | null;
+  // 成效追蹤：submission_url 為貼文連結，result_images 為成效截圖網址
+  submission_url: string | null;
+  result_images: string[] | null;
   // 交付內容：由 Foodie 從官網填寫，營運後台與官網同源
   material_caption: string | null;
   material_media: string[] | null;

@@ -127,12 +127,27 @@ function Overview() {
   // 占比以圖上呈現的項目為基準，legend 的百分比才會合計 100%
   const pieTotal = statusPie.reduce((n, d) => n + d.value, 0);
 
-  // 依申請數排出前 5 名案件
+  // 依申請數排出前 3 名案件
   const topCampaigns = cList
     .map((c) => ({ title: c.title, count: aList.filter((a) => a.campaign_id === c.id).length }))
     .filter((c) => c.count > 0)
     .sort((a, b) => b.count - a.count)
-    .slice(0, 5);
+    .slice(0, 3);
+
+  // 熱門餐廳：把同一家餐廳的所有案件申請數加總。
+  // 餐廳名優先取案件上的 restaurant_name，沒填才退回商家資料的店名。
+  const storeNameOf = (merchantId: string) =>
+    mList.find((m) => m.user_id === merchantId)?.store_name ?? "未命名店家";
+  const restaurantCounts = new Map<string, number>();
+  for (const c of cList) {
+    const name = c.restaurant_name?.trim() || storeNameOf(c.merchant_id);
+    const n = aList.filter((a) => a.campaign_id === c.id).length;
+    if (n > 0) restaurantCounts.set(name, (restaurantCounts.get(name) ?? 0) + n);
+  }
+  const topRestaurants = [...restaurantCounts.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
 
   const loading =
     merchants.isLoading || foodies.isLoading || campaigns.isLoading || applications.isLoading;
@@ -174,7 +189,7 @@ function Overview() {
       return clone.outerHTML;
     };
 
-    const trendChart = grabChart("chart-trend", 36);
+    const trendChart = grabChart("chart-trend", 33);
     // 圓餅圖所在的卡片較窄，高度跟著縮小才不會顯得比長條圖大
     const statusChart = grabChart("chart-status", 28);
 
@@ -231,12 +246,24 @@ function Overview() {
           .join("")
       : '<tr><td colspan="3">尚無申請資料</td></tr>';
 
+    const restaurantRows = topRestaurants.length
+      ? topRestaurants
+          .map(
+            (r, i) => `<tr>
+              <td class="n">${i + 1}</td>
+              <td class="t" title="${esc(r.name)}">${esc(r.name)}</td>
+              <td class="n">${r.count}</td>
+            </tr>`,
+          )
+          .join("")
+      : '<tr><td colspan="3">尚無申請資料</td></tr>';
+
     const topRows = topCampaigns.length
       ? topCampaigns
           .map(
             (c, i) => `<tr>
               <td class="n">${i + 1}</td>
-              <td>${esc(c.title)}</td>
+              <td class="t" title="${esc(c.title)}">${esc(c.title)}</td>
               <td class="n">${c.count}</td>
             </tr>`,
           )
@@ -252,37 +279,42 @@ function Overview() {
   @page { size: A4 portrait; margin: 16mm; }
   * { box-sizing: border-box; }
   body { font-family: "PingFang TC","Heiti TC","Microsoft JhengHei",sans-serif; color: #3F2E1E; margin: 0; }
-  header { border-bottom: 3px solid #FF8300; padding-bottom: 8px; margin-bottom: 12px; }
+  header { border-bottom: 3px solid #FF8300; padding-bottom: 10px; margin-bottom: 16px; }
   h1 { font-size: 22px; margin: 0 0 4px; }
-  h2 { font-size: 13px; margin: 14px 0 6px; padding-left: 8px; border-left: 4px solid #FF8300; }
+  h2 { font-size: 13px; margin: 16px 0 8px; padding-left: 9px; border-left: 4px solid #FF8300; }
   .meta { font-size: 12px; color: #A08E7C; }
-  .kpi { display: flex; flex-wrap: wrap; gap: 8px; }
-  .kpi div { flex: 1 1 0; min-width: 0; border: 1px solid #EFE3D6; background: #FDF7F0; border-radius: 8px; padding: 6px 8px; }
+  .kpi { display: flex; flex-wrap: wrap; gap: 10px; }
+  .kpi div { flex: 1 1 0; min-width: 0; border: 1px solid #EFE3D6; background: #FDF7F0; border-radius: 8px; padding: 9px 11px; }
   .kpi p { margin: 0; }
   .kpi .k { font-size: 11px; color: #A08E7C; }
   .kpi .v { font-size: 18px; font-weight: 700; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  th, td { border: 1px solid #EFE3D6; padding: 6px 8px; text-align: left; }
+  th, td { border: 1px solid #EFE3D6; padding: 7px 10px; text-align: left; }
   th { background: #FF8300; color: #fff; font-weight: 600; }
   tbody tr:nth-child(even) { background: #FDF7F0; }
   td.n, th.n { text-align: right; }
+  /* 排行表固定欄寬並讓名稱單行截斷：長標題換行會把整份報告推到第二頁 */
+  .rank table { table-layout: fixed; }
+  .rank col.i { width: 9mm; }
+  .rank col.c { width: 18mm; }
+  .rank td.t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bar { display: inline-block; height: 8px; background: #FF8300; border-radius: 4px; min-width: 2px; }
   td.b { font-weight: 700; }
-  .hero { border: 2px solid #FF8300; background: #FFF4E8; border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
+  .hero { border: 2px solid #FF8300; background: #FFF4E8; border-radius: 10px; padding: 13px 17px; margin-bottom: 14px; }
   .hero .k { margin: 0; font-size: 12px; color: #B85C00; }
   .hero .v { margin: 2px 0 0; font-size: 30px; font-weight: 800; color: #B85C00; }
   .hero .sub { margin: 6px 0 0; font-size: 12px; color: #7A6555; }
-  .charts { display: flex; gap: 10px; align-items: stretch; }
+  .charts { display: flex; gap: 14px; align-items: stretch; }
   .charts > div {
     min-width: 0;
-    border: 1px solid #EFE3D6; border-radius: 10px; background: #fff; padding: 10px 12px;
+    border: 1px solid #EFE3D6; border-radius: 10px; background: #fff; padding: 13px 15px;
   }
   /* 與頁面相同的 2:1 比例，圓餅圖不會被拉得跟長條圖一樣大 */
   .charts > div:first-child { flex: 2 1 0; }
   .charts > div:last-child { flex: 1 1 0; }
   .chart svg { display: block; margin: 0 auto; }
-  h3 { font-size: 13px; font-weight: 700; margin: 0 0 8px; color: #3F2E1E; }
-  .legend { margin: 8px 0 0; font-size: 11px; text-align: center; color: #7A6555; }
+  h3 { font-size: 13px; font-weight: 700; margin: 0 0 10px; color: #3F2E1E; }
+  .legend { margin: 10px 0 0; font-size: 11px; text-align: center; color: #7A6555; }
   .legend span { margin: 0 7px; font-weight: 600; white-space: nowrap; }
   .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
   footer { margin-top: 20px; padding-top: 8px; border-top: 1px solid #EFE3D6; font-size: 11px; color: #A08E7C; }
@@ -336,11 +368,24 @@ function Overview() {
   </div>
 </div>
 
-<h2>熱門案件（依申請數前 5 名）</h2>
-<table>
-  <thead><tr><th class="n">#</th><th>案件標題</th><th class="n">申請數</th></tr></thead>
-  <tbody>${topRows}</tbody>
-</table>
+<div class="charts rank" style="margin-top:18px">
+  <div>
+    <h3>熱門案件（前 3 名）</h3>
+    <table>
+      <colgroup><col class="i"><col><col class="c"></colgroup>
+      <thead><tr><th class="n">#</th><th>案件標題</th><th class="n">申請數</th></tr></thead>
+      <tbody>${topRows}</tbody>
+    </table>
+  </div>
+  <div>
+    <h3>熱門餐廳（前 3 名）</h3>
+    <table>
+      <colgroup><col class="i"><col><col class="c"></colgroup>
+      <thead><tr><th class="n">#</th><th>餐廳</th><th class="n">申請數</th></tr></thead>
+      <tbody>${restaurantRows}</tbody>
+    </table>
+  </div>
+</div>
 </body>
 </html>`;
 
